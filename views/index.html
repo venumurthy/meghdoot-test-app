@@ -39,6 +39,11 @@
     <div ng-controller='ListController'>
       <h1>Database List</h1>
       <div>
+        <input type="text" placeholder='Host' ng-model='hostName'></input>
+        <button class='btn btn-primary' ng-click='changeHost()'>Change Host</button>
+      </div>
+      <br>
+      <div>
         <input type="text" placeholder='New database name' ng-model='newDatabaseName'></input>
         <button class='btn btn-success' ng-click='addDatabase()'>Add</button>
       </div>

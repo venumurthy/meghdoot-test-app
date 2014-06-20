@@ -3,6 +3,11 @@
 
   var ListController = function($scope, Mongo){
     $scope.databases = Mongo.databases.query();
+    $scope.hostName = "localhost";
+    
+    $scope.changHost = function() {
+      // var hostName = $scope
+    }
 
     $scope.addDatabase = function(){
       var databaseName = $scope.newDatabaseName;
