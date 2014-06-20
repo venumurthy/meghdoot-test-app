@@ -8,4 +8,10 @@
   };
 
   app.factory('Mongo', ['$resource', Mongo]);
+  
+  var Host = function($resource) {
+    return $resource('/mongo-api/host', {}, { query: {method: 'GET', isArray: false}});
+  };
+  
+  app.factory('Host', ['$resource', Host]);
 })();

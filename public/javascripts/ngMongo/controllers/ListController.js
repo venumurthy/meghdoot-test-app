@@ -1,12 +1,18 @@
 (function(){
   var app = angular.module('ngMongo');
 
-  var ListController = function($scope, Mongo){
+  var ListController = function($scope, Mongo, Host){
     $scope.databases = Mongo.databases.query();
-    $scope.hostName = "localhost";
+    $scope.host = Host.query(function(host) {
+      $scope.hostUrl = host.url;
+      $scope.databases = Mongo.databases.query();
+    });
     
-    $scope.changHost = function() {
-      // var hostName = $scope
+    $scope.changeHost = function() {
+      var newHost = new Host({url: $scope.hostUrl});
+      newHost.$save(function(u) {
+        $scope.databases = Mongo.databases.query();
+      });
     }
 
     $scope.addDatabase = function(){
@@ -37,5 +43,5 @@
     };
   };
 
-  app.controller('ListController', ['$scope', 'Mongo', ListController]);
+  app.controller('ListController', ['$scope', 'Mongo', 'Host', ListController]);
 })();
