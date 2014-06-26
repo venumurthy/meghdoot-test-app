@@ -1,0 +1,12 @@
+heat_template_version: 2013-05-23
+
+description: The Grove
+
+resources:
+  mango:
+    type: OS::Nova::Server
+    properties:
+      key_name: box1
+      image: bare_mango
+      flavor: asif.mango.1gb.5gb.2vcpu
+      
