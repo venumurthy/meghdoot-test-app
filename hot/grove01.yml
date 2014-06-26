@@ -7,6 +7,6 @@ resources:
     type: OS::Nova::Server
     properties:
       key_name: box1
-      image: bare_mango
+      image: mango
       flavor: asif.mango.1gb.5gb.2vcpu
       
