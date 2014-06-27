@@ -1,8 +1,10 @@
 
-/*
- * GET home page.
- */
+var express = require('express');
+var router = express.Router();
 
-exports.index = function(req, res){
-  res.render('index.html');
-};
+/* GET home page. */
+router.get('/', function(req, res) {
+  res.render('index', { title: 'Meghdoot Test App', b: res.databases });
+});
+
+module.exports = router;
