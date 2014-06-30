@@ -1,2 +1,3 @@
+test/unit/*
 --recursive
 --reporter spec
