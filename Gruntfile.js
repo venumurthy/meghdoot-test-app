@@ -21,6 +21,9 @@ module.exports = function(grunt) {
   });
 
   grunt.loadNpmTasks('grunt-protractor-runner');
+
+  grunt.loadNpmTasks('grunt-selenium-webdriver');
+
   grunt.registerTask("test", "custom test", function() {
     var app = require('./app.js');
     app.set('port', process.env.PORT || 3000);
@@ -33,6 +36,6 @@ module.exports = function(grunt) {
   });
 
   // DEFAULT TASK
-  grunt.registerTask('default', ['test']);
+  grunt.registerTask('default', ['selenium_start', 'selenium_phantom_hub', 'test', 'selenium_stop']);
 
 };
