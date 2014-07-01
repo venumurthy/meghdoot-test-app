@@ -12,6 +12,9 @@ module.exports = function(grunt) {
     protractor: {
       options: {
         configFile: "test/protractor.conf.js", // Default config file
+        args: {
+          seleniumPort: 4444
+        }
       },
       run: {}
     }

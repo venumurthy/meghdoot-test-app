@@ -1,6 +1,6 @@
 exports.config = {
   
-  seleniumAddress: 'http://localhost:46037/wd/hub',
+  seleniumAddress: 'http://localhost:4444/wd/hub',
   
   capabilities: {
     browserName: 'phantomjs',
