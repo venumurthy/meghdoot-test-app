@@ -1,0 +1,12 @@
+cd /opt/stack/cinder
+git pull
+cd /opt/stack/glance
+git pull
+cd /opt/stack/heat
+git pull
+cd /opt/stack/horizon
+git pull
+cd /opt/stack/keystone
+git pull
+cd /opt/stack/nova
+git pull
