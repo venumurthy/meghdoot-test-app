@@ -1,0 +1,19 @@
+heat_template_version: 2013-05-23
+description:  Meghdoot Test App
+resources:
+  mango_flavor:
+    type: OS::Nova::Flavor
+    properties:
+      ram: 1024
+      vcpus: 1
+      disk: 5
+  mango_image:
+    type: OS::Glance:Image
+    properties:
+      name: meghdoot_test_app
+      disk_format: vdi
+      container_format: bare
+      is_public: True
+      protected: False
+      location: https://thoughtworks.box.com/shared/static/xlzpi2tnafviig109axi.vdi
+      
