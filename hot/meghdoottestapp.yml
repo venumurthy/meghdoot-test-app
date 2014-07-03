@@ -1,5 +1,5 @@
 heat_template_version: 2013-05-23
-description:  Meghdoot Test App
+description: Asif's Meghdoot Test App
 resources:
   mango_flavor:
     type: OS::Nova::Flavor
@@ -8,12 +8,19 @@ resources:
       vcpus: 1
       disk: 5
   mango_image:
-    type: OS::Glance:Image
+    type: OS::Glance::Image
     properties:
-      name: meghdoot_test_app
+      name: meghdoot_test_app_image
       disk_format: vdi
       container_format: bare
       is_public: True
       protected: False
       location: https://thoughtworks.box.com/shared/static/xlzpi2tnafviig109axi.vdi
+  mango_instance:
+    type: OS::Nova::Server
+    depends_on: [ mango_flavor, mango_image ]
+    properties:
+      name: meghdoot_instance
+      flavor: { get_resource: mango_flavor }
+      image: { get_resource: mango_image }
       
