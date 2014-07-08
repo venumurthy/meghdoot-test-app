@@ -33,12 +33,11 @@ resources:
     properties:
       config: |
         #!/bin/sh
-        apt-get update
         apt-get install -y git
         apt-get install -y nodejs-legacy
-        apt-get install -y npm
         cd /home/ubuntu
         git clone https://github.com/asifrc/meghdoot-test-app.git
+        meghdoot-test-app/node_modules/.bin/forever start /meghdoot-test-app/bin/www
   mango_init:
     type: OS::Heat::MultipartMime
     properties:
