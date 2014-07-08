@@ -1,5 +1,7 @@
 heat_template_version: 2013-05-23
+
 description: Meghdoot Test App
+
 parameters:
   Pool_Name:
     type: string
@@ -16,7 +18,34 @@ parameters:
     label: Image Name or ID
     description: An Ubuntu Cloud Image image already uploaded to OpenStack
     default: a2aad0e8-0c68-4eac-a22f-ae23d7cc7bf2
+
 resources:
+  mango_cloud_init:
+    type: OS::Heat::CloudConfig
+    properties:
+      cloud_config:
+        users:
+        - name: ubuntu
+          ssh-authorized-keys:
+          - { get_param: SSH_Key }
+  mango_cloud_script:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      config: |
+        #!/bin/sh
+        apt-get update
+        apt-get install -y git
+        apt-get install -y nodejs-legacy
+        apt-get install -y npm
+        cd /home/ubuntu
+        git clone https://github.com/asifrc/meghdoot-test-app.git
+  mango_init:
+    type: OS::Heat::MultipartMime
+    properties:
+      parts:
+      - config: { get_resource: mango_cloud_init }
+      - config: { get_resource: mango_cloud_script }
+      
   mango_flavor:
     type: OS::Nova::Flavor
     properties:
@@ -36,19 +65,16 @@ resources:
       flavor: { get_resource: mango_flavor }
       image: { get_param: Image_Name }
       key_name: { get_resource: mango_keypair }
-      user_data: |
-        #!/bin/sh
-        cd /home/ec2-user
-        apt-get install -y git
-        apt-get install -y nodejs-legacy
-        git clone https://github.com/asifrc/meghdoot-test-app.git
+      user_data_format: RAW
+      user_data:
+        get_resource: mango_init
   mango_floatingip:
     type: OS::Nova::FloatingIP
     properties:
       pool: { get_param: Pool_Name }
   mango_ip_assoc:
     type: OS::Nova::FloatingIPAssociation
+    depends_on: [ mango_instance ]
     properties:
       floating_ip: { get_resource: mango_floatingip }
-      server_id: { get_resource: mango_instance }
-      
+      server_id: { get_resource: mango_instance }    
