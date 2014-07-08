@@ -5,14 +5,17 @@ parameters:
     type: string
     label: Floating IP Pool
     description: Floating IP Pool Range from which the instance will get assigned
+    default: asifpub
   SSH_Key:
     type: string
     label: SSH Key
     description: Public key from the machine from which you'd like to access the instance
+    default: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDREkH6Q5tsjPYZ1F9zVTuvOC2zWidftq2ntCw6sLWy9j7sSuHM3mxyP7S5O2oE+pKerBtYieUQDKFo50wB/YRh4BY0aNYSuygQFgjjLDh9IE2HF1JAkfBbRl5rJGVuQtUPUGaldRsZ8KsQauh29jKkFu7N/ZRUI4LrCUb6+pxBt7Np7bNlGxx+5l6EyHkW3kmq5wLEKIYYIqrl71BtMFiFwxHsDpMJonCfKD1aAI0Q+zySJfiAhFkojpLJw7fZhdYTD6B1mDAr5nYKaWcZoG8uuWqJvmlLpcc+oSEnoJMqTVGmVRih1hzXgwRW3Z4vlFqjrQ+p7VnmEuZAwUOJFIgB archoud@thoughtworks.com
   Image_Name:
     type: string
     label: Image Name or ID
     description: An Ubuntu Cloud Image image already uploaded to OpenStack
+    default: a2aad0e8-0c68-4eac-a22f-ae23d7cc7bf2
 resources:
   mango_flavor:
     type: OS::Nova::Flavor
@@ -35,7 +38,10 @@ resources:
       key_name: { get_resource: mango_keypair }
       user_data: |
         #!/bin/sh
-        mkdir /home/ubuntu/HeatWasHere
+        cd /home/ec2-user
+        apt-get install -y git
+        apt-get install -y nodejs-legacy
+        git clone https://github.com/asifrc/meghdoot-test-app.git
   mango_floatingip:
     type: OS::Nova::FloatingIP
     properties:
