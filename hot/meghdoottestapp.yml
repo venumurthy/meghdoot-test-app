@@ -1,26 +1,48 @@
 heat_template_version: 2013-05-23
-description: Asif's Meghdoot Test App
+description: Meghdoot Test App
+parameters:
+  Pool_Name:
+    type: string
+    label: Floating IP Pool
+    description: Floating IP Pool Range from which the instance will get assigned
+  SSH_Key:
+    type: string
+    label: SSH Key
+    description: Public key from the machine from which you'd like to access the instance
+  Image_Name:
+    type: string
+    label: Image Name or ID
+    description: An Ubuntu Cloud Image image already uploaded to OpenStack
 resources:
   mango_flavor:
     type: OS::Nova::Flavor
     properties:
-      ram: 1024
+      ram: 2048
       vcpus: 1
       disk: 5
-  mango_image:
-    type: OS::Glance::Image
+  mango_keypair:
+    type: OS::Nova::KeyPair
     properties:
-      name: meghdoot_test_app_image
-      disk_format: vdi
-      container_format: bare
-      is_public: True
-      protected: False
-      location: https://thoughtworks.box.com/shared/static/xlzpi2tnafviig109axi.vdi
+      name: mango_from_box1
+      public_key: { get_param: SSH_Key }
   mango_instance:
     type: OS::Nova::Server
-    depends_on: [ mango_flavor, mango_image ]
+    depends_on: [ mango_flavor, mango_keypair ]
     properties:
       name: meghdoot_instance
       flavor: { get_resource: mango_flavor }
-      image: { get_resource: mango_image }
+      image: { get_param: Image_Name }
+      key_name: { get_resource: mango_keypair }
+      user_data: |
+        #!/bin/sh
+        mkdir /home/ubuntu/HeatWasHere
+  mango_floatingip:
+    type: OS::Nova::FloatingIP
+    properties:
+      pool: { get_param: Pool_Name }
+  mango_ip_assoc:
+    type: OS::Nova::FloatingIPAssociation
+    properties:
+      floating_ip: { get_resource: mango_floatingip }
+      server_id: { get_resource: mango_instance }
       
