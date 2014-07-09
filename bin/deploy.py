@@ -47,6 +47,7 @@ params = {
 conn = httplib.HTTPConnection("10.1.12.16:8004")
 conn.request("POST", "/v1/a9d08118cbf14b6fbf353f04a3a58704/stacks", json.dumps(params), headers)
 response = conn.getresponse().read()
+conn.close()
 
 print response
 
