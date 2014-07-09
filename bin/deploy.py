@@ -38,7 +38,7 @@ print "Attempting to deploy heat template...\n"
 headers = {
   "Content-Type": "application/json",
   "Accept": "application/json",
-  "X-Auth-Token": os.environ['HEAT_TOKEN']
+  "X-Auth-Token": auth_token
 }
 params = {
   "stack_name": "DeployTest",
