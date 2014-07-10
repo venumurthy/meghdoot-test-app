@@ -84,6 +84,17 @@ resources:
       user_data_format: RAW
       user_data:
         get_resource: mango_app
+  mango_instance_db:
+    type: OS::Nova::Server
+    depends_on: [ mango_flavor, mango_keypair ]
+    properties:
+      name: meghdoot_db_instance
+      flavor: { get_resource: mango_flavor }
+      image: { get_param: Image_Name }
+      key_name: { get_resource: mango_keypair }
+      user_data_format: RAW
+      user_data:
+        get_resource: mango_db
 
   mango_floatingip:
     type: OS::Nova::FloatingIP
