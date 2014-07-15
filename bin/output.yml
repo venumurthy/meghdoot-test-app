@@ -1,0 +1,154 @@
+{
+    "heat_template_version": "2013-05-23",
+    "description": "Heat Template Generated Mon Jul 14 15:54:11 2014",
+    "parameters": {
+        "Pool_Name": {
+            "default": "asifpub",
+            "type": "string",
+            "description": "my description",
+            "label": "Floating IP Pool"
+        },
+        "SSH_Key": {
+            "default": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDREkH6Q5tsjPYZ1F9zVTuvOC2zWidftq2ntCw6sLWy9j7sSuHM3mxyP7S5O2oE+pKerBtYieUQDKFo50wB/YRh4BY0aNYSuygQFgjjLDh9IE2HF1JAkfBbRl5rJGVuQtUPUGaldRsZ8KsQauh29jKkFu7N/ZRUI4LrCUb6+pxBt7Np7bNlGxx+5l6EyHkW3kmq5wLEKIYYIqrl71BtMFiFwxHsDpMJonCfKD1aAI0Q+zySJfiAhFkojpLJw7fZhdYTD6B1mDAr5nYKaWcZoG8uuWqJvmlLpcc+oSEnoJMqTVGmVRih1hzXgwRW3Z4vlFqjrQ+p7VnmEuZAwUOJFIgB archoud@thoughtworks.com",
+            "type": "string",
+            "description": "Public key from the machine from which you'd like to access the instance",
+            "label": "SSH Key"
+        },
+        "Image_Name": {
+            "default": "a2aad0e8-0c68-4eac-a22f-ae23d7cc7bf2",
+            "type": "string",
+            "description": "An Ubuntu Cloud Image image already uploaded to OpenStack",
+            "label": "Image Name or ID"
+        }
+    },
+    "resources": {
+        "mango_app_script": {
+            "type": "OS::Heat::SoftwareConfig",
+            "properties": {
+                "config": "| #!/bin/sh\napt-get install -y git\napt-get install -y nodejs-legacy\ncd /home/ubuntu\ngit clone https://github.com/asifrc/meghdoot-test-app.git\nmeghdoot-test-app/node_modules/.bin/forever start meghdoot-test-app/bin/www\nsudo iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 80 -j REDIRECT --to-port 3000"
+            }
+        },
+        "mango_instance_1": {
+            "depends_on": [
+                "mango_flavor",
+                "mango_keypair"
+            ],
+            "type": "OS::Nova::Server",
+            "properties": {
+                "user_data_format": "RAW",
+                "name": "meghdoot_instance_1",
+                "key_name": "mango_from_box1",
+                "image": {
+                    "get_param": "Image_Name"
+                },
+                "user_data": {
+                    "get_resource": "mango_app"
+                },
+                "flavor": {
+                    "get_resource": "mango_flavor"
+                }
+            }
+        },
+        "mango_instance_3": {
+            "depends_on": [
+                "mango_flavor",
+                "mango_keypair"
+            ],
+            "type": "OS::Nova::Server",
+            "properties": {
+                "user_data_format": "RAW",
+                "name": "meghdoot_instance_3",
+                "key_name": "mango_from_box1",
+                "image": {
+                    "get_param": "Image_Name"
+                },
+                "user_data": {
+                    "get_resource": "mango_app"
+                },
+                "flavor": {
+                    "get_resource": "mango_flavor"
+                }
+            }
+        },
+        "mango_instance_2": {
+            "depends_on": [
+                "mango_flavor",
+                "mango_keypair"
+            ],
+            "type": "OS::Nova::Server",
+            "properties": {
+                "user_data_format": "RAW",
+                "name": "meghdoot_instance_2",
+                "key_name": "mango_from_box1",
+                "image": {
+                    "get_param": "Image_Name"
+                },
+                "user_data": {
+                    "get_resource": "mango_app"
+                },
+                "flavor": {
+                    "get_resource": "mango_flavor"
+                }
+            }
+        },
+        "mango_db_script": {
+            "type": "OS::Heat::SoftwareConfig",
+            "properties": {
+                "config": "| #!/bin/sh\napt-get install -y mongodb-server\nsed -i 's/127.0.0.1/0.0.0.0/g' /etc/mongodb.conf\nsudo service mongodb restart\n"
+            }
+        },
+        "mango_app_init": {
+            "type": "OS::Heat::CloudConfig",
+            "properties": {
+                "cloud_config": {
+                    "users": {
+                        "ssh-authorized-keys": {
+                            "get_param": "SSH_Key"
+                        },
+                        "sudo": "ALL=(ALL) NOPASSWD:ALL",
+                        "name": "ubuntu"
+                    }
+                }
+            }
+        },
+        "mango_keypair": {
+            "type": "OS::Nova::KeyPair",
+            "properties": {
+                "public_key": {
+                    "get_param": "SSH_Key"
+                },
+                "name": "mango_from_box1"
+            }
+        },
+        "mango_flavor": {
+            "type": "OS::Nova::Flavor",
+            "properties": {
+                "disk": 5,
+                "vcpus": 1,
+                "ram": 2048
+            }
+        },
+        "mango_app": {
+            "type": "OS::Heat::MultipartMime",
+            "properties": {
+                "parts": [
+                    {
+                        "config": {
+                            "get_resource": "mango_app_init"
+                        }
+                    },
+                    {
+                        "config": {
+                            "get_resource": "mango_db_script"
+                        }
+                    },
+                    {
+                        "config": {
+                            "get_resource": "mango_app_script"
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}
