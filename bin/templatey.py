@@ -341,8 +341,9 @@ class Generator(object):
 
         return str(heat_template)
 
-    def _script_contents(self, script_path):
-        with open(script_path, 'r') as content_file:
+    @staticmethod
+    def _script_contents(script_path):
+        with open(script_path.strip(), 'r') as content_file:
             return content_file.read().replace('\n', ' && ')
 
     @staticmethod
