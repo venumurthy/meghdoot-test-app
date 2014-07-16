@@ -3,7 +3,7 @@
 """Heat Template Generator
 
 Usage:
-  templatey.py [-i=<instance_count>] -a=<app_setup_script_path> -b=<db_setup_script_path>
+  templatey.py [-i=<instance_count>] -a=<app_setup_script_path> -b=<db_setup_script_path> [-s=<save_file>]
   templatey.py (-h | --help)
   templatey.py --version
 
@@ -13,6 +13,7 @@ Options:
   -i=<instance_count>          Number of instances [default: 1].
   -a=<app_setup_script_path>       Path to the application setup script.
   -b=<db_setup_script_path>       Path to the database setup script.
+  -s=<save_file>            Save the template output to a file [default: false]
 
 """
 import httplib
@@ -20,12 +21,10 @@ import json
 import os.path
 import sys
 import time
-from auth import UserAuth, AuthError
 from docopt import docopt
+from contextlib import closing
 
-AUTH_ENDPOINT_URL = '10.1.12.16:5000'
-NOVA_ENDPOINT_URL = '10.1.12.16:8774'
-
+from auth import UserAuth, AuthError
 
 class HeatTemplate(object):
     def __init__(self, nova_client, template_version, app_script, db_script, instance_count):
@@ -77,18 +76,6 @@ class HeatTemplate(object):
     def add_parameter(self, parameter):
         self.parameters.update(parameter)
         return self
-
-    def __str__(self):
-        namespace = {}
-        namespace.update({'heat_template_version': self.template_version})
-        namespace.update({'description': 'Heat Template Generated {timestamp}'.format(timestamp=time.strftime("%c"))})
-
-        if self.parameters:
-            namespace.update({'parameters': self.parameters})
-
-        namespace.update({'resources': self.resources})
-
-        return json.dumps(namespace, sort_keys=False, indent=4, separators=(',', ': '))
 
     @staticmethod
     def _flavor():
@@ -151,13 +138,13 @@ class HeatTemplate(object):
             }
         }
 
-    def _key_name(self):
-        if self.nova_client.keypair_exists('mango_from_box1'):
+    def _key_name(self, keypair_exists):
+        if keypair_exists:
             return 'mango_from_box1'
         else:
             return {"get_resource": "mango_keypair"}
 
-    def _app_instance(self, index):
+    def _app_instance(self, index, keypair_exists):
         return {
             "mango_instance_{index}".format(index=index): {
                 "depends_on": [
@@ -168,7 +155,7 @@ class HeatTemplate(object):
                 "properties": {
                     "user_data_format": "RAW",
                     "name": "meghdoot_instance_{index}".format(index=index),
-                    "key_name": self._key_name(),
+                    "key_name": self._key_name(keypair_exists),
                     "image": {"get_param": "Image_Name"},
                     "user_data": {"get_resource": "mango_app"},
                     "flavor": {"get_resource": "mango_flavor"}
@@ -177,20 +164,70 @@ class HeatTemplate(object):
         }
 
     def get_resources(self, app_script, db_script):
+        keypair_exists = self.nova_client.keypair_exists('mango_from_box1')
+
         resources = self._app_init_block()
         resources.update(self._app_script_block(app_script))
         resources.update(self._db_script_block(db_script))
         resources.update(self._app())
-        resources.update(self._key_pair())
         resources.update(self._flavor())
+        resources.update(self._floating_ip_resource())
+
+        if not keypair_exists:
+            resources.update(self._key_pair())
 
         for index in xrange(int(self.instance_count)):
-            resources.update(self._app_instance(index + 1))
+            resources.update(self._app_instance(index + 1, keypair_exists))
 
         return resources
 
+    def _floating_ip_resource(self):
+        resource = {
+            "mango_floatingip": {
+                "type": "OS::Nova::FloatingIP",
+                "properties": {
+                    "pool": {
+                        "get_param": "Pool_Name"
+                    }
+                }
+            }
+        }
+        for index in xrange(int(self.instance_count)):
+            resource_name = "mango_instance_{index}".format(index=index+1)
+            resource.update({
+                "mango_ip_assoc{index}".format(index=index): {
+                    "depends_on": [
+                        resource_name
+                    ],
+                    "type": "OS::Nova::FloatingIPAssociation",
+                    "properties": {
+                        "server_id": {
+                            "get_resource": resource_name
+                        },
+                        "floating_ip": {
+                            "get_resource": "mango_floatingip"
+                        }
+                    }
+                }
+            })
+        return resource
 
-class NovaClient:
+    def __str__(self):
+        namespace = {}
+        namespace.update({'heat_template_version': self.template_version})
+        namespace.update({'description': 'Heat Template Generated {timestamp}'.format(timestamp=time.strftime("%c"))})
+
+        if self.parameters:
+            namespace.update({'parameters': self.parameters})
+
+        namespace.update({'resources': self.resources})
+
+        return json.dumps(namespace, sort_keys=False, indent=4, separators=(',', ': '))
+
+
+class NovaClient(object):
+    NOVA_ENDPOINT_URL = '10.1.12.16:8774'
+
     def __init__(self):
         self.username = os.environ['OS_USERNAME']
         self.password = os.environ['OS_PASSWORD']
@@ -213,19 +250,18 @@ class NovaClient:
             "X-Auth-Token": token
         }
 
-        conn = httplib.HTTPConnection(NOVA_ENDPOINT_URL)
-        endpoint = "/v2/{tenant_id}/os-keypairs/{keypair_name}".format(tenant_id=self.tenant_id, keypair_name=pair_name)
-        conn.request("GET", endpoint, json.dumps({}), headers)
-        response = conn.getresponse()
-        status = response.status
-        conn.close()
+        with closing(httplib.HTTPConnection(self.NOVA_ENDPOINT_URL)) as conn:
+            endpoint = "/v2/{tenant_id}/os-keypairs/{keypair_name}".format(tenant_id=self.tenant_id, keypair_name=pair_name)
+            conn.request("GET", endpoint, json.dumps({}), headers)
+            response = conn.getresponse()
+            status = response.status
 
         return status == 200
 
 
-class Main(object):
-    @staticmethod
-    def run(arguments):
+class Generator(object):
+
+    def run(self, arguments):
         app_script = db_script = ''
         template_version = '2013-05-23'
 
@@ -265,11 +301,17 @@ class Main(object):
             .add_parameter(parameter2) \
             .add_parameter(parameter3)
 
-        with open(os.path.join(os.path.dirname(sys.argv[0]), 'output.yml'), 'w') as outfile:
+        if( '-s' in arguments and arguments['-s'] == True):
+            self.save()
+
+        return str(heat_template)
+
+    def save(self, heat_template):
+        with open(os.path.join(os.path.dirname(sys.argv[0]), 'hot_generated.json'), 'w') as outfile:
             outfile.write(str(heat_template))
 
 
 if __name__ == "__main__":
     arguments = docopt(__doc__, version='Heat Template Generator 0.1')
-    Main.run(arguments)
+    Generator().run(arguments)
     print 'Template creation complete'

@@ -1,6 +1,28 @@
 # -*- coding: utf-8 -*-
-import httplib, json, os
+"""Heat Template Generator
+
+Usage:
+  templatey.py [-i=<instance_count>] -a=<app_setup_script_path> -b=<db_setup_script_path>
+  templatey.py (-h | --help)
+  templatey.py --version
+
+Options:
+  -h --help                 Show this screen.
+  --version                 Show version.
+  -i=<instance_count>          Number of instances [default: 1].
+  -a=<app_setup_script_path>       Path to the application setup script.
+  -b=<db_setup_script_path>       Path to the database setup script.
+
+"""
+import httplib
+import json
+import os
+
+from docopt import docopt
+
 from auth import UserAuth, AuthError
+from templatey import Generator
+
 
 HEAT_ENDPOINT_URL = '10.1.12.16:8004'
 
@@ -57,24 +79,28 @@ class Stacks(object):
       self._update_stack(stack_id, params)
 
 if __name__ == "__main__":
-  USERNAME = os.environ['OS_USERNAME']
-  PASSWORD = os.environ['OS_PASSWORD']
-  TENANT_NAME = os.environ['OS_TENANTNAME']
-  STACK_NAME = os.environ['HEAT_STACK_NAME']
-  TENANT_ID = 'a9d08118cbf14b6fbf353f04a3a58704'
+    arguments = docopt(__doc__)
+    USERNAME = os.environ['OS_USERNAME']
+    PASSWORD = os.environ['OS_PASSWORD']
+    TENANT_NAME = os.environ['OS_TENANTNAME']
+    STACK_NAME = os.environ['HEAT_STACK_NAME']
+    TENANT_ID = 'a9d08118cbf14b6fbf353f04a3a58704'
 
-  user = UserAuth(TENANT_NAME, USERNAME, PASSWORD)
+    user = UserAuth(TENANT_NAME, USERNAME, PASSWORD)
 
-  try:
-    token = user.get_token()
-  except AuthError:
-    print 'Received error when trying to authenticate user: {username}'.format(username = USERNAME)
-    raise
+    try:
+        token = user.get_token()
+    except AuthError:
+        print 'Received error when trying to authenticate user: {username}'.format(username = USERNAME)
+        raise
 
-  params = {
-    "stack_name": STACK_NAME,
-    "template_url": "https://raw.githubusercontent.com/asifrc/meghdoot-test-app/master/hot/meghdoottestapp.yml"
-  }
+    template = Generator().run(arguments)
+    print template
 
-  Stacks(TENANT_ID, token).create_or_update(params)
-  print "Deployment complete"
+    params = {
+        "stack_name": STACK_NAME,
+        "template": template
+    }
+
+    Stacks(TENANT_ID, token).create_or_update(params)
+    print "Deployment complete"
