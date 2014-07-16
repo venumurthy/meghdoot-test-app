@@ -125,8 +125,34 @@ class HeatTemplate(object):
             }
         }
 
-    @staticmethod
-    def _db_configuration():
+    def _app_instance(self, index, keypair_exists):
+        dependencies = ['flavor']
+
+        if not keypair_exists:
+            dependencies.append('keypair')
+
+        return {
+            "app_instance_{index}".format(index=index): {
+                "depends_on": dependencies,
+                "type": "OS::Nova::Server",
+                "properties": {
+                    "user_data_format": "RAW",
+                    "name": "app_instance_{index}".format(index=index),
+                    "key_name": self._key_name(keypair_exists),
+                    "image": {"get_param": "Image_Name"},
+                    "user_data": {"get_resource": "application_parts"},
+                    "flavor": {"get_resource": "flavor"}
+                }
+            }
+        }
+
+    def _db_instance(self, keypair_exists):
+
+        dependencies = ['flavor']
+
+        if not keypair_exists:
+            dependencies.append('keypair')
+
         db_resource = {
             "database_parts": {
                 "type": "OS::Heat::MultipartMime",
@@ -141,17 +167,12 @@ class HeatTemplate(object):
 
         db_resource.update({
             "database_instance": {
-                "depends_on": [
-                    "flavor",
-                    "keypair"
-                ],
+                "depends_on": dependencies,
                 "type": "OS::Nova::Server",
                 "properties": {
                     "user_data_format": "RAW",
                     "name": "database_instance",
-                    "key_name": {
-                        "get_resource": "keypair"
-                    },
+                    "key_name": self._key_name(keypair_exists),
                     "image": {"get_param": "Image_Name"},
                     "user_data": {"get_resource": "database_parts"},
                     "flavor": {"get_resource": "flavor"}
@@ -181,22 +202,6 @@ class HeatTemplate(object):
         else:
             return {"get_resource": "keypair"}
 
-    def _app_instance(self, index, keypair_exists):
-        return {
-            "app_instance_{index}".format(index=index): {
-                "depends_on": ["flavor", "keypair"],
-                "type": "OS::Nova::Server",
-                "properties": {
-                    "user_data_format": "RAW",
-                    "name": "app_instance_{index}".format(index=index),
-                    "key_name": self._key_name(keypair_exists),
-                    "image": {"get_param": "Image_Name"},
-                    "user_data": {"get_resource": "application_parts"},
-                    "flavor": {"get_resource": "flavor"}
-                }
-            }
-        }
-
     def get_resources(self, app_script, db_script):
         keypair_exists = self.nova_client.keypair_exists('mango_from_box1')
 
@@ -204,9 +209,9 @@ class HeatTemplate(object):
         resources.update(self._app_script_block(app_script))
         resources.update(self._db_script_block(db_script))
         resources.update(self._application_parts())
-        resources.update(self._db_configuration())
         resources.update(self._flavor())
         resources.update(self._floating_ip_resource())
+        resources.update(self._db_instance(keypair_exists))
 
         if not keypair_exists:
             resources.update(self._key_pair())
