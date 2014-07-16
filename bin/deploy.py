@@ -14,6 +14,7 @@ Options:
   -b=<db_setup_script_path>       Path to the database setup script.
 
 """
+from contextlib import closing
 import httplib
 import json
 import os
@@ -24,59 +25,84 @@ from auth import UserAuth, AuthError
 from templatey import Generator
 
 
-HEAT_ENDPOINT_URL = '10.1.12.16:8004'
+class StackActionError(Exception):
+    pass
+
 
 class Stacks(object):
-  def __init__(self, tenant_id, token):
-    self.tenant_id = tenant_id
-    self.token = token
+    HEAT_ENDPOINT_URL = '10.1.12.16:8004'
 
-  def _headers(self):
-    return {
-      "Content-Type": "application/json",
-      "Accept": "application/json",
-      "X-Auth-Token": self.token
-    }
+    def __init__(self, tenant_id, token):
+        self.tenant_id = tenant_id
+        self.token = token
 
-  def _create_stack(self, params):
-    print "Attempting to create heat stack %s...\n" % params['stack_name']
-    conn = httplib.HTTPConnection(HEAT_ENDPOINT_URL)
-    conn.request("POST", "/v1/{tenant_id}/stacks".format(tenant_id=self.tenant_id), json.dumps(params), self._headers())
-    response = conn.getresponse().read()
-    conn.close()
-    return response
+    def _headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "X-Auth-Token": self.token
+        }
 
-  def _update_stack(self, stack_id, params):
-    stack_name = params['stack_name']
-    print "Attempting to update heat stack %s...\n" % stack_name
-    conn = httplib.HTTPConnection(HEAT_ENDPOINT_URL)
-    endpoint = "/v1/{tenant_id}/stacks/{stack_name}/{stack_id}".format(tenant_id=self.tenant_id,
-                                                                       stack_name=stack_name,
-                                                                       stack_id=stack_id)
-    conn.request("PUT", endpoint, json.dumps(params), self._headers())
-    response = conn.getresponse().read()
-    conn.close()
-    return response
+    def _create_stack(self, params):
+        print "Attempting to create heat stack %s...\n" % params['stack_name']
+        with closing(httplib.HTTPConnection(self.HEAT_ENDPOINT_URL)) as conn:
+            conn.request("POST", "/v1/{tenant_id}/stacks".format(tenant_id=self.tenant_id), json.dumps(params), self._headers())
+            response = conn.getresponse()
+            response_contents = response.read()
+            status = response.status
 
-  def get_stack(self, stack_name):
-    print 'Fetching stack with name: %s' % stack_name
-    conn = httplib.HTTPConnection(HEAT_ENDPOINT_URL)
-    endpoint = "/v1/{tenant_id}/stacks/{stack_name}".format(tenant_id=self.tenant_id,
-                                                            stack_name=stack_name)
-    conn.request("GET", endpoint, json.dumps({}), self._headers())
-    exists_response = conn.getresponse()
-    conn.close()
-    return exists_response
+        return self._format_response(status, response_contents)
 
-  def create_or_update(self, params):
-    exists_response = self.get_stack(params['stack_name'])
 
-    if exists_response.status == 404:
-      self._create_stack(params)
+    def _update_stack(self, stack_id, params):
+        stack_name = params['stack_name']
+        print "Attempting to update heat stack %s...\n" % stack_name
 
-    elif exists_response.status == 302:
-      stack_id = exists_response.getheader('Location').split('/')[-1]
-      self._update_stack(stack_id, params)
+        endpoint = "/v1/{tenant_id}/stacks/{stack_name}/{stack_id}".format(tenant_id=self.tenant_id,
+                                                                           stack_name=stack_name,
+                                                                           stack_id=stack_id)
+
+        with closing(httplib.HTTPConnection(self.HEAT_ENDPOINT_URL)) as conn:
+            conn.request("PUT", endpoint, json.dumps(params), self._headers())
+            response = conn.getresponse()
+            response_contents = response.read()
+            status = response.status
+
+        return self._format_response(status, response_contents)
+
+    def get_stack(self, stack_name):
+        print 'Fetching stack with name: %s' % stack_name
+        conn = httplib.HTTPConnection(self.HEAT_ENDPOINT_URL)
+        endpoint = "/v1/{tenant_id}/stacks/{stack_name}".format(tenant_id=self.tenant_id, stack_name=stack_name)
+        conn.request("GET", endpoint, json.dumps({}), self._headers())
+        exists_response = conn.getresponse()
+        conn.close()
+        return exists_response
+
+    @staticmethod
+    def _format_response(status, response):
+        result = {'status': status}
+
+        if status == 400:
+            json_response = json.loads(response)
+            result.update({'error': json_response['error'], 'explanation': json_response['explanation']})
+
+        return result
+
+    def create_or_update(self, params):
+        action_response = None
+        exists_response = self.get_stack(params['stack_name'])
+
+        if exists_response.status == 404:
+            action_response = self._create_stack(params)
+
+        elif exists_response.status == 302:
+            stack_id = exists_response.getheader('Location').split('/')[-1]
+            action_response = self._update_stack(stack_id, params)
+
+        if action_response['status'] == 400:
+            raise StackActionError(action_response['error'])
+
 
 if __name__ == "__main__":
     arguments = docopt(__doc__)
@@ -91,10 +117,11 @@ if __name__ == "__main__":
     try:
         token = user.get_token()
     except AuthError:
-        print 'Received error when trying to authenticate user: {username}'.format(username = USERNAME)
+        print 'Received error when trying to authenticate user: {username}'.format(username=USERNAME)
         raise
 
     template = Generator().run(arguments)
+
     print template
 
     params = {
@@ -102,5 +129,6 @@ if __name__ == "__main__":
         "template": template
     }
 
-    Stacks(TENANT_ID, token).create_or_update(params)
+    results = Stacks(TENANT_ID, token).create_or_update(params)
+
     print "Deployment complete"
