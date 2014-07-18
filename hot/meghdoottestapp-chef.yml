@@ -19,6 +19,12 @@ parameters:
     description: An Ubuntu Cloud Image image already uploaded to OpenStack
     default: a2aad0e8-0c68-4eac-a22f-ae23d7cc7bf2
 
+  chef_version:
+    label: Chef Version
+    description: Version of chef client to use
+    type: string
+    default: 11.12.4
+
 resources:
   mango_app_init:
     type: OS::Heat::CloudConfig
@@ -30,13 +36,13 @@ resources:
           ssh-authorized-keys:
           - { get_param: SSH_Key }
   mango_db_script:
-    type: OS::Heat::SoftwareConfig
+    type: OS::Heat::ChefSolo
     properties:
-      config: |
-        #!/bin/sh
-        apt-get install -y mongodb-server
-        sed -i 's/127.0.0.1/0.0.0.0/g' /etc/mongodb.conf
-        sudo service mongodb restart
+      chef_version: {get_param: chef_version}
+      node:
+        mongodb:
+        run_list: ["recipe[mongodb]"]
+
   mango_app_script:
     type: OS::Heat::SoftwareConfig
     properties:
