@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<cruise xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="cruise-config.xsd" schemaVersion="72">
+  <server artifactsdir="artifacts" commandRepositoryLocation="default" serverId="28bb789c-6a3c-4d5f-a84d-74dcea352ff7" />
+  <pipelines group="Meghdoot">
+    <pipeline name="Meghdoot-Test-App" template="meghdoot-test-app">
+      <environmentvariables>
+        <variable name="HEAT_STACK_NAME">
+          <value>DeployTest</value>
+        </variable>
+        <variable name="OS_USERNAME" secure="true">
+          <encryptedValue>HgZRLwi4GKY=</encryptedValue>
+        </variable>
+        <variable name="OS_PASSWORD" secure="true">
+          <encryptedValue>0TdLzRZwsvkfacu8hDpqNQ==</encryptedValue>
+        </variable>
+        <variable name="OS_TENANTNAME" secure="true">
+          <encryptedValue>HgZRLwi4GKY=</encryptedValue>
+        </variable>
+      </environmentvariables>
+      <materials>
+        <git url="https://github.com/asifrc/meghdoot-test-app" />
+      </materials>
+    </pipeline>
+  </pipelines>
+  <templates>
+    <pipeline name="meghdoot-test-app">
+      <stage name="Build">
+        <jobs>
+          <job name="NPMInstall">
+            <tasks>
+              <exec command="npm">
+                <arg>install</arg>
+              </exec>
+            </tasks>
+          </job>
+        </jobs>
+      </stage>
+      <stage name="UnitTest">
+        <jobs>
+          <job name="MochaTest">
+            <tasks>
+              <exec command="./node_modules/mocha/bin/_mocha" />
+            </tasks>
+          </job>
+        </jobs>
+      </stage>
+      <stage name="FunctionalTest">
+        <jobs>
+          <job name="ProtractorTests">
+            <tasks>
+              <exec command="grunt" />
+            </tasks>
+          </job>
+        </jobs>
+      </stage>
+      <stage name="Deploy-to-Dev">
+        <jobs>
+          <job name="HeatDeploy">
+            <tasks>
+              <exec command="python" workingdir="bin">
+                <arg>deploy.py</arg>
+                <arg>-i 3</arg>
+                <arg>-a setup_app.sh</arg>
+                <arg>-b setup_db.sh</arg>
+                <runif status="passed" />
+              </exec>
+            </tasks>
+          </job>
+        </jobs>
+      </stage>
+    </pipeline>
+  </templates>
+  <agents>
+    <agent hostname="guava" ipaddress="10.0.0.2" uuid="2fc4c494-093c-43f0-b16c-8da77c47512e" />
+  </agents>
+</cruise>
+
