@@ -22,6 +22,7 @@
       </materials>
     </pipeline>
   </pipelines>
+  <pipelines group="OpenStack-EC2-Driver" />
   <templates>
     <pipeline name="meghdoot-test-app">
       <stage name="Build">
@@ -59,7 +60,7 @@
             <tasks>
               <exec command="python" workingdir="bin">
                 <arg>deploy.py</arg>
-                <arg>-i 3</arg>
+                <arg>-i 2</arg>
                 <arg>-a setup_app.sh</arg>
                 <arg>-b setup_db.sh</arg>
                 <runif status="passed" />

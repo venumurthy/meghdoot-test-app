@@ -45,7 +45,7 @@ class HeatTemplate(object):
                 }
             }
         }
-        base_block['mango_app_script']['properties']['config'] = '| {script}'.format(script=app_script)
+        base_block['mango_app_script']['properties']['config'] = '{script}'.format(script=app_script)
 
         return base_block
 
@@ -59,7 +59,7 @@ class HeatTemplate(object):
                 }
             }
         }
-        base_block['mango_db_script']['properties']['config'] = '| {script}'.format(script=db_script)
+        base_block['mango_db_script']['properties']['config'] = '{script}'.format(script=db_script)
 
         return base_block
         # mango_app_script:
@@ -349,7 +349,7 @@ class Generator(object):
     @staticmethod
     def _script_contents(script_path):
         with open(script_path.strip(), 'r') as content_file:
-            return content_file.read().replace('\n', ' && ')
+            return content_file.read()
 
     @staticmethod
     def save(heat_template):
