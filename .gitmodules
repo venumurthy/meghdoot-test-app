@@ -1,3 +1,0 @@
-[submodule "hot/cookbook/chef-mongodb"]
-	path = hot/cookbook/mongodb
-	url = https://github.com/edelight/chef-mongodb.git
