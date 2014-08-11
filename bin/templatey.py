@@ -84,7 +84,7 @@ class HeatTemplate(object):
             'flavor': {
                 'type': 'OS::Nova::Flavor',
                 'properties': {
-                    'ram': 2048,
+                    'ram': 1024,
                     'vcpus': 1,
                     'disk': 5
                 }
@@ -181,8 +181,8 @@ class HeatTemplate(object):
         })
         return db_resource
 
-    @staticmethod
-    def _key_pair():
+    # @staticmethod
+    def _key_pair(self):
         return {
             'keypair': {
                 "type": "OS::Nova::KeyPair",
@@ -190,17 +190,14 @@ class HeatTemplate(object):
                     "public_key": {
                         "get_param": "SSH_Key"
                     },
-                    "name": "mango_from_box1"
+                    "name": { "get_param": "OS::stack_id"}
                 }
             }
         }
 
-    @staticmethod
-    def _key_name(keypair_exists):
-        if keypair_exists:
-            return 'mango_from_box1'
-        else:
-            return {"get_resource": "keypair"}
+    # @staticmethod
+    def _key_name(self, keypair_exists):
+        return { "get_resource": "keypair"}
 
     def get_resources(self, app_script, db_script):
         keypair_exists = self.nova_client.keypair_exists('mango_from_box1')
@@ -213,8 +210,8 @@ class HeatTemplate(object):
         resources.update(self._floating_ip_resource())
         resources.update(self._db_instance(keypair_exists))
 
-        if not keypair_exists:
-            resources.update(self._key_pair())
+        # if not keypair_exists:
+        resources.update(self._key_pair())
 
         for index in xrange(int(self.instance_count)):
             resources.update(self._app_instance(index + 1, keypair_exists))
