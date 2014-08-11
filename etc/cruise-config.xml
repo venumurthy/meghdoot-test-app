@@ -18,11 +18,134 @@
         </variable>
       </environmentvariables>
       <materials>
-        <git url="https://github.com/asifrc/meghdoot-test-app" />
+        <git url="https://github.com/asifrc/meghdoot-test-app.git" />
+      </materials>
+    </pipeline>
+    <pipeline name="Application" isLocked="false">
+      <materials>
+        <git url="https://github.com/asifrc/meghdoot-test-app.git" dest="app" />
+      </materials>
+      <stage name="Build">
+        <jobs>
+          <job name="npmInstall">
+            <tasks>
+              <exec command="npm" workingdir="app">
+                <arg>install</arg>
+              </exec>
+            </tasks>
+            <artifacts>
+              <artifact src="app" dest="app" />
+              <artifact src="app/bin" dest="deployment" />
+            </artifacts>
+          </job>
+        </jobs>
+      </stage>
+      <stage name="UnitTest">
+        <jobs>
+          <job name="MochaTest">
+            <tasks>
+              <exec command="npm" workingdir="app">
+                <arg>test</arg>
+                <runif status="passed" />
+              </exec>
+            </tasks>
+          </job>
+        </jobs>
+      </stage>
+      <stage name="FunctionalTest">
+        <jobs>
+          <job name="ProtractorTest">
+            <tasks>
+              <exec command="grunt" workingdir="app">
+                <runif status="passed" />
+              </exec>
+            </tasks>
+          </job>
+        </jobs>
+      </stage>
+    </pipeline>
+    <pipeline name="Deploy_to_Chicago" template="Deploy_to_OpenStack">
+      <environmentvariables>
+        <variable name="OS_USERNAME">
+          <value>admin</value>
+        </variable>
+        <variable name="OS_TENANTNAME">
+          <value>admin</value>
+        </variable>
+        <variable name="OS_TENANT_ID">
+          <value>a9d08118cbf14b6fbf353f04a3a58704</value>
+        </variable>
+        <variable name="HEAT_STACK_NAME">
+          <value>asif_test</value>
+        </variable>
+        <variable name="HEAT_ENDPOINT_URL">
+          <value>10.1.12.16:8004</value>
+        </variable>
+        <variable name="KEYSTONE_URL">
+          <value>10.1.12.16:5000</value>
+        </variable>
+        <variable name="IMAGE_ID">
+          <value>2aad0e8-0c68-4eac-a22f-ae23d7cc7bf2</value>
+        </variable>
+        <variable name="FLOATING_IP_POOL">
+          <value>asifpub</value>
+        </variable>
+        <variable name="OS_PASSWORD" secure="true">
+          <encryptedValue>0TdLzRZwsvkfacu8hDpqNQ==</encryptedValue>
+        </variable>
+        <variable name="SSH_KEY" secure="true">
+          <encryptedValue>LRbM0MgyMwhxGPJkmS+qAGLB5XwFVFNwHduGXckQ63yYNHPLZn5XDQniZYVnhbG35naJANRDgEJc&#xD;
+aVDy5dX19LbJ7FliDRsBJvtGDfyk3NCDEeKxtjcvODld3q4yLgKaMX4ADLNE89+LjI4tUiRxyz8P&#xD;
+zN+c9OzSEVG+OCMe7KuiMCepkBDSxJ4yOCLA9vSP7nue5HyG9pSSwRBk6yfLUuO4cf4muMcjDJoS&#xD;
+6P94+H9gEhxu0xlOabardQVLDB8+MXHvtEemJ3LfWQcTWjNijYReTVVY8VsHfuSSB+y71hs10su2&#xD;
+TL1RFkKWjIKIPiQ8HrrWGneHG+5i4+uYfP7XCC4ue2+TFbdGxmYrN1SaKaQdXNfVMSqeiKGY2qu6&#xD;
+Xl/o96aFMgbU0B18kTNehoxWFSkMod8ODjJ8B+CXVEEuaL1i8OHUQgdJydv5y++maozHriheUWJ2&#xD;
+UZRRc41Kac2un62E84xdzOYMomuGry6IIRsXOI7dmOoaQSAtyBbLcfEM1d3mmVXeUOzJLlgDFvlh&#xD;
+RVfQ9AE7yNa7</encryptedValue>
+        </variable>
+      </environmentvariables>
+      <materials>
+        <pipeline pipelineName="Application" stageName="Build" />
+      </materials>
+    </pipeline>
+    <pipeline name="Deploy_to_Bangalore" template="Deploy_to_OpenStack">
+      <environmentvariables>
+        <variable name="OS_USERNAME">
+          <value>admin</value>
+        </variable>
+        <variable name="OS_TENANTNAME">
+          <value>admin</value>
+        </variable>
+        <variable name="OS_TENANT_ID">
+          <value>0455cf58f9394a8bae8eb02d7143fe9e</value>
+        </variable>
+        <variable name="HEAT_STACK_NAME">
+          <value>asif_test</value>
+        </variable>
+        <variable name="HEAT_ENDPOINT_URL">
+          <value>10.4.3.34:8004</value>
+        </variable>
+        <variable name="KEYSTONE_URL">
+          <value>10.4.3.34:35357</value>
+        </variable>
+        <variable name="IMAGE_ID">
+          <value>167012e3-627d-4c7e-bbde-c225f156725f</value>
+        </variable>
+        <variable name="FLOATING_IP_POOL">
+          <value>nova</value>
+        </variable>
+        <variable name="OS_PASSWORD" secure="true">
+          <encryptedValue>HgZRLwi4GKY=</encryptedValue>
+        </variable>
+        <variable name="SSH_KEY" secure="true">
+          <encryptedValue>LRbM0MgyMwhxGPJkmS+qAGLB5XwFVFNwHduGXckQ63yYNHPLZn5XDQniZYVnhbG35naJANRDgEJcaVDy5dX19LbJ7FliDRsBJvtGDfyk3NCDEeKxtjcvODld3q4yLgKaMX4ADLNE89+LjI4tUiRxyz8PzN+c9OzSEVG+OCMe7KuiMCepkBDSxJ4yOCLA9vSP7nue5HyG9pSSwRBk6yfLUuO4cf4muMcjDJoS6P94+H9gEhxu0xlOabardQVLDB8+MXHvtEemJ3LfWQcTWjNijYReTVVY8VsHfuSSB+y71hs10su2TL1RFkKWjIKIPiQ8HrrWGneHG+5i4+uYfP7XCC4ue2+TFbdGxmYrN1SaKaQdXNfVMSqeiKGY2qu6Xl/o96aFMgbU0B18kTNehoxWFSkMod8ODjJ8B+CXVEEuaL1i8OHUQgdJydv5y++maozHriheUWJ2UZRRc41Kac2un62E84xdzOYMomuGry6IIRsXOI7dmOoaQSAtyBbLcfEM1d3mmVXeUOzJLlgDFvlhRVfQ9AE7yNa7</encryptedValue>
+        </variable>
+      </environmentvariables>
+      <materials>
+        <pipeline pipelineName="Application" stageName="Build" />
       </materials>
     </pipeline>
   </pipelines>
-  <pipelines group="OpenStack-EC2-Driver" />
   <templates>
     <pipeline name="meghdoot-test-app">
       <stage name="Build">
@@ -61,6 +184,27 @@
               <exec command="python" workingdir="bin">
                 <arg>deploy.py</arg>
                 <arg>-i 2</arg>
+                <arg>-a setup_app.sh</arg>
+                <arg>-b setup_db.sh</arg>
+                <runif status="passed" />
+              </exec>
+            </tasks>
+          </job>
+        </jobs>
+      </stage>
+    </pipeline>
+    <pipeline name="Deploy_to_OpenStack">
+      <stage name="Deploy">
+        <approval type="manual" />
+        <jobs>
+          <job name="Deploy">
+            <tasks>
+              <fetchartifact pipeline="Application" stage="Build" job="npmInstall" srcdir="deployment">
+                <runif status="passed" />
+              </fetchartifact>
+              <exec command="python" workingdir="deployment/bin">
+                <arg>deploy.py</arg>
+                <arg>-i 3</arg>
                 <arg>-a setup_app.sh</arg>
                 <arg>-b setup_db.sh</arg>
                 <runif status="passed" />
