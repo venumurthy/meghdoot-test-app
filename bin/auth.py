@@ -1,6 +1,6 @@
-import httplib, json
+import httplib, json, os
 
-AUTH_ENDPOINT_URL = '10.1.12.16:5000'
+AUTH_ENDPOINT_URL = os.environ['KEYSTONE_URL']
 
 class AuthError(Exception):
   pass

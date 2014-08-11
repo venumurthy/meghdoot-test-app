@@ -30,11 +30,11 @@ class StackActionError(Exception):
 
 
 class Stacks(object):
-    HEAT_ENDPOINT_URL = '10.1.12.16:8004'
 
-    def __init__(self, tenant_id, token):
+    def __init__(self, tenant_id, token, endpoint):
         self.tenant_id = tenant_id
         self.token = token
+        self.HEAT_ENDPOINT_URL = endpoint
 
     def _headers(self):
         return {
@@ -99,6 +99,11 @@ class Stacks(object):
         elif exists_response.status == 302:
             stack_id = exists_response.getheader('Location').split('/')[-1]
             action_response = self._update_stack(stack_id, params)
+        else:
+            action_response = {
+                "status": 400,
+                "error": "No response recieved"
+            }
 
         if action_response['status'] == 400:
             raise StackActionError(action_response['error'])
@@ -110,7 +115,11 @@ if __name__ == "__main__":
     PASSWORD = os.environ['OS_PASSWORD']
     TENANT_NAME = os.environ['OS_TENANTNAME']
     STACK_NAME = os.environ['HEAT_STACK_NAME']
-    TENANT_ID = 'a9d08118cbf14b6fbf353f04a3a58704'
+    ENDPOINT = os.environ['HEAT_ENDPOINT_URL']
+    TENANT_ID = os.environ['OS_TENANT_ID']
+    IMAGE_ID = os.environ['IMAGE_ID']
+    FLOATING_IP_POOL = os.environ['FLOATING_IP_POOL']
+    SSH_KEY = os.environ['SSH_KEY']
 
     user = UserAuth(TENANT_NAME, USERNAME, PASSWORD)
 
@@ -126,9 +135,14 @@ if __name__ == "__main__":
 
     params = {
         "stack_name": STACK_NAME,
-        "template": template
+        "template": template,
+        "parameters": {
+            "Image_Name": IMAGE_ID,
+            "Pool_Name": FLOATING_IP_POOL,
+            "SSH_Key": SSH_KEY
+        }
     }
 
-    results = Stacks(TENANT_ID, token).create_or_update(params)
+    results = Stacks(TENANT_ID, token, ENDPOINT).create_or_update(params)
 
     print "Deployment complete"
