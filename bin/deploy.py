@@ -129,6 +129,12 @@ if __name__ == "__main__":
         print 'Received error when trying to authenticate user: {username}'.format(username=USERNAME)
         raise
 
+    if not '-i' in arguments['-i']:
+        if 'APP_INSTANCES' in os.environ:
+            arguments['-i'] = os.environ['APP_INSTANCES']
+        else:
+            arguments['-i'] = 1
+
     template = Generator().run(arguments)
 
     print template
