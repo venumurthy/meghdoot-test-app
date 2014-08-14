@@ -18,15 +18,13 @@ from contextlib import closing
 import httplib
 import json
 import os
+import sys
+import time
 
 from docopt import docopt
 
 from auth import UserAuth, AuthError
 from templatey import Generator
-
-HTTP_REDIRECT = 302
-
-HTTP_NOT_FOUND = 404
 
 
 class StackActionError(Exception):
@@ -168,6 +166,15 @@ if __name__ == "__main__":
         }
     }
 
-    results = Stacks(TENANT_ID, token, ENDPOINT).create_or_update(params)
+    stacks = Stacks(TENANT_ID, token, ENDPOINT)
+    stacks.create_or_update(params)
+    status = "_IN_PROGRESS"
+    while "_IN_PROGRESS" in status:
+        time.sleep(3)
+        status = stacks.get_stack(params['stack_name'])['stack_status']
 
-    print "Deployment complete"
+    print "Stack status %s" % status
+
+    if "_COMPLETE" in status:
+        sys.exit(0)
+    sys.exit(1)
