@@ -24,6 +24,10 @@ from docopt import docopt
 from auth import UserAuth, AuthError
 from templatey import Generator
 
+HTTP_REDIRECT = 302
+
+HTTP_NOT_FOUND = 404
+
 
 class StackActionError(Exception):
     pass
@@ -50,8 +54,8 @@ class Stacks(object):
             response = conn.getresponse()
             response_contents = response.read()
             status = response.status
-
-        return self._format_response(status, response_contents)
+        if status != httplib.CREATED:
+            raise StackActionError(self._format_response(status, response_contents)['error'])
 
 
     def _update_stack(self, stack_id, params):
@@ -67,46 +71,59 @@ class Stacks(object):
             response = conn.getresponse()
             response_contents = response.read()
             status = response.status
+        if status != httplib.ACCEPTED:
+            raise StackActionError(self._format_response(status, response_contents)['error'])
 
-        return self._format_response(status, response_contents)
+    def stack_exists(self, stack_name):
+        print 'Checking stack with name: %s' % stack_name
+        conn = httplib.HTTPConnection(self.HEAT_ENDPOINT_URL)
+        endpoint = "/v1/{tenant_id}/stacks/{stack_name}".format(tenant_id=self.tenant_id, stack_name=stack_name)
+        conn.request("GET", endpoint, json.dumps({}), self._headers())
+        response = conn.getresponse().status
+        conn.close()
+        return response == httplib.FOUND
 
     def get_stack(self, stack_name):
         print 'Fetching stack with name: %s' % stack_name
         conn = httplib.HTTPConnection(self.HEAT_ENDPOINT_URL)
         endpoint = "/v1/{tenant_id}/stacks/{stack_name}".format(tenant_id=self.tenant_id, stack_name=stack_name)
         conn.request("GET", endpoint, json.dumps({}), self._headers())
-        exists_response = conn.getresponse()
+        response = conn.getresponse()
+        if response.status != 302:
+            return {'status': response.status}
+
+        stack_location = response.getheader('Location')
+        response_contents = response.read()
         conn.close()
-        return exists_response
+
+        stack_location = stack_location.replace("http://" + self.HEAT_ENDPOINT_URL, "")
+
+        conn2 = httplib.HTTPConnection(self.HEAT_ENDPOINT_URL)
+
+        headers = self._headers()
+        headers['Accept'] = "application/vnd.openstack.orchestration-1.0"
+        conn2.request("GET", stack_location, None, headers)
+        exists_response = conn2.getresponse().read()
+        conn2.close()
+        stack = json.loads(exists_response)['stack']
+        return stack
 
     @staticmethod
     def _format_response(status, response):
         result = {'status': status}
 
-        if status == 400:
+        if status == httplib.BAD_REQUEST:
             json_response = json.loads(response)
             result.update({'error': json_response['error'], 'explanation': json_response['explanation']})
 
         return result
 
     def create_or_update(self, params):
-        action_response = None
-        exists_response = self.get_stack(params['stack_name'])
-
-        if exists_response.status == 404:
-            action_response = self._create_stack(params)
-
-        elif exists_response.status == 302:
-            stack_id = exists_response.getheader('Location').split('/')[-1]
-            action_response = self._update_stack(stack_id, params)
+        if not self.stack_exists(params['stack_name']):
+            self._create_stack(params)
         else:
-            action_response = {
-                "status": 400,
-                "error": "No response recieved"
-            }
-
-        if action_response['status'] == 400:
-            raise StackActionError(action_response['error'])
+            stack = self.get_stack(params['stack_name'])
+            self._update_stack(stack['parameters']['OS::stack_id'], params)
 
 
 if __name__ == "__main__":
@@ -135,9 +152,11 @@ if __name__ == "__main__":
         else:
             arguments['-i'] = 1
 
+    # print Stacks(TENANT_ID, token, ENDPOINT).get_stack('asif_test')
+
     template = Generator().run(arguments)
 
-    print template
+    # print template
 
     params = {
         "stack_name": STACK_NAME,
