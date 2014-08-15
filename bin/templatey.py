@@ -186,6 +186,15 @@ class HeatTemplate(object):
                 }
             }
         })
+
+        self.outputs.update({
+            "database_instance_ip": {
+                "value": { "get_attr": ["database_instance", "first_address"] },
+                "description": "Database IP Address"
+            }
+        })
+
+
         return db_resource
 
     # @staticmethod
