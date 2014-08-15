@@ -1,0 +1,223 @@
+{
+    "heat_template_version": "2013-05-23",
+    "description": "Heat Template Generated Wed Aug  6 15:58:28 2014",
+    "parameters": {
+        "Pool_Name": {
+            "default": "asifpub",
+            "type": "string",
+            "description": "my description",
+            "label": "Floating IP Pool"
+        },
+        "SSH_Key": {
+            "default": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDREkH6Q5tsjPYZ1F9zVTuvOC2zWidftq2ntCw6sLWy9j7sSuHM3mxyP7S5O2oE+pKerBtYieUQDKFo50wB/YRh4BY0aNYSuygQFgjjLDh9IE2HF1JAkfBbRl5rJGVuQtUPUGaldRsZ8KsQauh29jKkFu7N/ZRUI4LrCUb6+pxBt7Np7bNlGxx+5l6EyHkW3kmq5wLEKIYYIqrl71BtMFiFwxHsDpMJonCfKD1aAI0Q+zySJfiAhFkojpLJw7fZhdYTD6B1mDAr5nYKaWcZoG8uuWqJvmlLpcc+oSEnoJMqTVGmVRih1hzXgwRW3Z4vlFqjrQ+p7VnmEuZAwUOJFIgB archoud@thoughtworks.com",
+            "type": "string",
+            "description": "Public key from the machine from which you'd like to access the instance",
+            "label": "SSH Key"
+        },
+        "Image_Name": {
+            "default": "a2aad0e8-0c68-4eac-a22f-ae23d7cc7bf2",
+            "type": "string",
+            "description": "An Ubuntu Cloud Image image already uploaded to OpenStack",
+            "label": "Image Name or ID"
+        }
+    },
+    "resources": {
+        "database_parts": {
+            "type": "OS::Heat::MultipartMime",
+            "properties": {
+                "parts": [
+                    {
+                        "config": {
+                            "get_resource": "mango_app_init"
+                        }
+                    },
+                    {
+                        "config": {
+                            "get_resource": "mango_db_script"
+                        }
+                    }
+                ]
+            }
+        },
+        "mango_db_script": {
+            "type": "OS::Heat::SoftwareConfig",
+            "properties": {
+                "config": "#!/bin/sh\napt-get install -y mongodb-server\nsed -i 's/127.0.0.1/0.0.0.0/g' /etc/mongodb.conf\nsudo service mongodb restart\n"
+            }
+        },
+        "app_instance_1": {
+            "depends_on": [
+                "flavor",
+                "keypair"
+            ],
+            "type": "OS::Nova::Server",
+            "properties": {
+                "user_data_format": "RAW",
+                "name": "app_instance_1",
+                "key_name": {
+                    "get_resource": "keypair"
+                },
+                "image": {
+                    "get_param": "Image_Name"
+                },
+                "user_data": {
+                    "get_resource": "application_parts"
+                },
+                "flavor": {
+                    "get_resource": "flavor"
+                }
+            }
+        },
+        "mango_app_script": {
+            "type": "OS::Heat::SoftwareConfig",
+            "properties": {
+                "config": "#!/bin/sh\napt-get install -y git\napt-get install -y nodejs-legacy\ncd /home/ubuntu\ngit clone https://github.com/asifrc/meghdoot-test-app.git\nmeghdoot-test-app/node_modules/.bin/forever start meghdoot-test-app/bin/www\nsudo iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 80 -j REDIRECT --to-port 3000"
+            }
+        },
+        "keypair": {
+            "type": "OS::Nova::KeyPair",
+            "properties": {
+                "public_key": {
+                    "get_param": "SSH_Key"
+                },
+                "name": {
+                    "get_param": "OS::stack_id"
+                }
+            }
+        },
+        "app_instance_2": {
+            "depends_on": [
+                "flavor",
+                "keypair"
+            ],
+            "type": "OS::Nova::Server",
+            "properties": {
+                "user_data_format": "RAW",
+                "name": "app_instance_2",
+                "key_name": {
+                    "get_resource": "keypair"
+                },
+                "image": {
+                    "get_param": "Image_Name"
+                },
+                "user_data": {
+                    "get_resource": "application_parts"
+                },
+                "flavor": {
+                    "get_resource": "flavor"
+                }
+            }
+        },
+        "mango_app_init": {
+            "type": "OS::Heat::CloudConfig",
+            "properties": {
+                "cloud_config": {
+                    "users": {
+                        "ssh-authorized-keys": {
+                            "get_param": "SSH_Key"
+                        },
+                        "sudo": "ALL=(ALL) NOPASSWD:ALL",
+                        "name": "ubuntu"
+                    }
+                }
+            }
+        },
+        "database_instance": {
+            "depends_on": [
+                "flavor",
+                "keypair"
+            ],
+            "type": "OS::Nova::Server",
+            "properties": {
+                "user_data_format": "RAW",
+                "name": "database_instance",
+                "key_name": {
+                    "get_resource": "keypair"
+                },
+                "image": {
+                    "get_param": "Image_Name"
+                },
+                "user_data": {
+                    "get_resource": "database_parts"
+                },
+                "flavor": {
+                    "get_resource": "flavor"
+                }
+            }
+        },
+        "mango_ip_assoc1": {
+            "depends_on": [
+                "app_instance_1"
+            ],
+            "type": "OS::Nova::FloatingIPAssociation",
+            "properties": {
+                "server_id": {
+                    "get_resource": "app_instance_1"
+                },
+                "floating_ip": {
+                    "get_resource": "mango_floatingip_1"
+                }
+            }
+        },
+        "mango_floatingip_2": {
+            "type": "OS::Nova::FloatingIP",
+            "properties": {
+                "pool": {
+                    "get_param": "Pool_Name"
+                }
+            }
+        },
+        "flavor": {
+            "type": "OS::Nova::Flavor",
+            "properties": {
+                "disk": 5,
+                "vcpus": 1,
+                "ram": 2048
+            }
+        },
+        "mango_ip_assoc2": {
+            "depends_on": [
+                "app_instance_2"
+            ],
+            "type": "OS::Nova::FloatingIPAssociation",
+            "properties": {
+                "server_id": {
+                    "get_resource": "app_instance_2"
+                },
+                "floating_ip": {
+                    "get_resource": "mango_floatingip_2"
+                }
+            }
+        },
+        "application_parts": {
+            "type": "OS::Heat::MultipartMime",
+            "properties": {
+                "parts": [
+                    {
+                        "config": {
+                            "get_resource": "mango_app_init"
+                        }
+                    },
+                    {
+                        "config": {
+                            "get_resource": "mango_db_script"
+                        }
+                    },
+                    {
+                        "config": {
+                            "get_resource": "mango_app_script"
+                        }
+                    }
+                ]
+            }
+        },
+        "mango_floatingip_1": {
+            "type": "OS::Nova::FloatingIP",
+            "properties": {
+                "pool": {
+                    "get_param": "Pool_Name"
+                }
+            }
+        }
+    }
+}

@@ -123,6 +123,9 @@ class Stacks(object):
             stack = self.get_stack(params['stack_name'])
             self._update_stack(stack['parameters']['OS::stack_id'], params)
 
+def save_to_file(object):
+    with open(os.path.join(os.path.dirname(sys.argv[0]), 'deploy_output.json'), 'w') as outfile:
+        outfile.write(json.dumps(object, sort_keys=False, indent=4, separators=(',', ': ')))
 
 if __name__ == "__main__":
     arguments = docopt(__doc__)
@@ -173,6 +176,10 @@ if __name__ == "__main__":
         time.sleep(3)
         stack = stacks.get_stack(params['stack_name'])
 
+
+    save_to_file(stack['outputs']);
+    print "Saved outputs to depoloy_output.json"
+    
     for output in stack['outputs']:
         print "{key}, {val}".format(key=output['output_key'], val=output['output_value'])
 
