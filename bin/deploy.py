@@ -168,13 +168,16 @@ if __name__ == "__main__":
 
     stacks = Stacks(TENANT_ID, token, ENDPOINT)
     stacks.create_or_update(params)
-    status = "_IN_PROGRESS"
-    while "_IN_PROGRESS" in status:
+    stack = stacks.get_stack(params['stack_name'])
+    while "_IN_PROGRESS" in stack['stack_status']:
         time.sleep(3)
-        status = stacks.get_stack(params['stack_name'])['stack_status']
+        stack = stacks.get_stack(params['stack_name'])
 
-    print "Stack status %s" % status
+    for output in stack['outputs']:
+        print "{key}, {val}".format(key=output['output_key'], val=output['output_value'])
 
-    if "_COMPLETE" in status:
+    print "Stack status %s" % stack['stack_status']
+
+    if "_COMPLETE" in stack['stack_status']:
         sys.exit(0)
     sys.exit(1)
