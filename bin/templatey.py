@@ -26,6 +26,7 @@ from contextlib import closing
 
 from auth import UserAuth, AuthError
 
+from collections import OrderedDict
 
 class HeatTemplate(object):
     def __init__(self, nova_client, template_version, app_script, db_script, instance_count):
@@ -33,6 +34,7 @@ class HeatTemplate(object):
         self.instance_count = instance_count
         self.template_version = template_version
         self.parameters = {}
+        self.outputs = {}
         self.resources = self.get_resources(app_script, db_script)
 
     @staticmethod
@@ -131,7 +133,7 @@ class HeatTemplate(object):
         if not keypair_exists:
             dependencies.append('keypair')
 
-        return {
+        return ({
             "app_instance_{index}".format(index=index): {
                 "depends_on": dependencies,
                 "type": "OS::Nova::Server",
@@ -144,7 +146,12 @@ class HeatTemplate(object):
                     "flavor": {"get_resource": "flavor"}
                 }
             }
-        }
+        }, {
+            "app_instance_{index}_ip".format(index=index): {
+                "value": { "get_attr": ["app_instance_{index}".format(index=index), "first_address"] },
+                "description": "app_instance_{index} IP Address".format(index=index)
+            }
+        })
 
     def _db_instance(self, keypair_exists):
 
@@ -214,7 +221,9 @@ class HeatTemplate(object):
         resources.update(self._key_pair())
 
         for index in xrange(int(self.instance_count)):
-            resources.update(self._app_instance(index + 1, keypair_exists))
+            instance = self._app_instance(index + 1, keypair_exists)
+            resources.update(instance[0])
+            self.outputs.update(instance[1])
 
         return resources
 
@@ -250,17 +259,31 @@ class HeatTemplate(object):
                     }
                 }
             })
+            self.outputs.update({
+                "{name}_public_ip".format(name=ip_name): {
+                    "value": { "get_attr": [ ip_name, "ip"]},
+                    "description": "{name} Floating IP Address".format(name=ip_name)
+                }
+            })
         return ip_resources
 
     def __str__(self):
-        namespace = {}
-        namespace.update({'heat_template_version': self.template_version})
-        namespace.update({'description': 'Heat Template Generated {timestamp}'.format(timestamp=time.strftime("%c"))})
+        namespace = OrderedDict([
+            ('heat_template_version', self.template_version),
+            ('description', 'Heat Template Generated {timestamp}'.format(timestamp=time.strftime("%c"))),
+            ('parameters', self.parameters),
+            ('resources', self.resources),
+            ('outputs', self.outputs)
+        ])
 
-        if self.parameters:
-            namespace.update({'parameters': self.parameters})
+        # namespace.update({'heat_template_version': self.template_version})
+        # namespace.update({'description': 'Heat Template Generated {timestamp}'.format(timestamp=time.strftime("%c"))})
 
-        namespace.update({'resources': self.resources})
+        # namespace.update({'parameters': self.parameters})
+        # namespace.update({'outputs': self.outputs})
+
+        # namespace.update({'resources': self.resources})
+
 
         return json.dumps(namespace, sort_keys=False, indent=4, separators=(',', ': '))
 
