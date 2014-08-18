@@ -44,8 +44,8 @@
         <jobs>
           <job name="MochaTest">
             <tasks>
-              <exec command="npm" workingdir="app">
-                <arg>test</arg>
+              <exec command="grunt" workingdir="app">
+                <arg>unit</arg>
                 <runif status="passed" />
               </exec>
             </tasks>
@@ -57,6 +57,7 @@
           <job name="ProtractorTest">
             <tasks>
               <exec command="grunt" workingdir="app">
+                <arg>angular</arg>
                 <runif status="passed" />
               </exec>
             </tasks>
@@ -85,23 +86,19 @@
           <value>10.1.12.16:5000</value>
         </variable>
         <variable name="IMAGE_ID">
-          <value>2aad0e8-0c68-4eac-a22f-ae23d7cc7bf2</value>
+          <value>a2aad0e8-0c68-4eac-a22f-ae23d7cc7bf2</value>
         </variable>
         <variable name="FLOATING_IP_POOL">
           <value>asifpub</value>
+        </variable>
+        <variable name="APP_INSTANCES">
+          <value>2</value>
         </variable>
         <variable name="OS_PASSWORD" secure="true">
           <encryptedValue>0TdLzRZwsvkfacu8hDpqNQ==</encryptedValue>
         </variable>
         <variable name="SSH_KEY" secure="true">
-          <encryptedValue>LRbM0MgyMwhxGPJkmS+qAGLB5XwFVFNwHduGXckQ63yYNHPLZn5XDQniZYVnhbG35naJANRDgEJc&#xD;
-aVDy5dX19LbJ7FliDRsBJvtGDfyk3NCDEeKxtjcvODld3q4yLgKaMX4ADLNE89+LjI4tUiRxyz8P&#xD;
-zN+c9OzSEVG+OCMe7KuiMCepkBDSxJ4yOCLA9vSP7nue5HyG9pSSwRBk6yfLUuO4cf4muMcjDJoS&#xD;
-6P94+H9gEhxu0xlOabardQVLDB8+MXHvtEemJ3LfWQcTWjNijYReTVVY8VsHfuSSB+y71hs10su2&#xD;
-TL1RFkKWjIKIPiQ8HrrWGneHG+5i4+uYfP7XCC4ue2+TFbdGxmYrN1SaKaQdXNfVMSqeiKGY2qu6&#xD;
-Xl/o96aFMgbU0B18kTNehoxWFSkMod8ODjJ8B+CXVEEuaL1i8OHUQgdJydv5y++maozHriheUWJ2&#xD;
-UZRRc41Kac2un62E84xdzOYMomuGry6IIRsXOI7dmOoaQSAtyBbLcfEM1d3mmVXeUOzJLlgDFvlh&#xD;
-RVfQ9AE7yNa7</encryptedValue>
+          <encryptedValue>LRbM0MgyMwhxGPJkmS+qAGLB5XwFVFNwHduGXckQ63yYNHPLZn5XDQniZYVnhbG35naJANRDgEJcaVDy5dX19LbJ7FliDRsBJvtGDfyk3NCDEeKxtjcvODld3q4yLgKaMX4ADLNE89+LjI4tUiRxyz8PzN+c9OzSEVG+OCMe7KuiMCepkBDSxJ4yOCLA9vSP7nue5HyG9pSSwRBk6yfLUuO4cf4muMcjDJoS6P94+H9gEhxu0xlOabardQVLDB8+MXHvtEemJ3LfWQcTWjNijYReTVVY8VsHfuSSB+y71hs10su2TL1RFkKWjIKIPiQ8HrrWGneHG+5i4+uYfP7XCC4ue2+TFbdGxmYrN1SaKaQdXNfVMSqeiKGY2qu6Xl/o96aFMgbU0B18kTNehoxWFSkMod8ODjJ8B+CXVEEuaL1i8OHUQgdJydv5y++maozHriheUWJ2UZRRc41Kac2un62E84xdzOYMomuGry6IIRsXOI7dmOoaQSAtyBbLcfEM1d3mmVXeUOzJLlgDFvlhRVfQ9AE7yNa7</encryptedValue>
         </variable>
       </environmentvariables>
       <materials>
@@ -134,6 +131,9 @@ RVfQ9AE7yNa7</encryptedValue>
         <variable name="FLOATING_IP_POOL">
           <value>nova</value>
         </variable>
+        <variable name="APP_INSTANCES">
+          <value>1</value>
+        </variable>
         <variable name="OS_PASSWORD" secure="true">
           <encryptedValue>HgZRLwi4GKY=</encryptedValue>
         </variable>
@@ -144,6 +144,25 @@ RVfQ9AE7yNa7</encryptedValue>
       <materials>
         <pipeline pipelineName="Application" stageName="Build" />
       </materials>
+    </pipeline>
+    <pipeline name="Test_Chicago">
+      <materials>
+        <pipeline pipelineName="Deploy_to_Chicago" stageName="Deploy" />
+      </materials>
+      <stage name="Test_Application">
+        <jobs>
+          <job name="TestApplication">
+            <tasks>
+              <fetchartifact pipeline="Deploy_to_Chicago" stage="Deploy" job="Deploy" srcfile="deploy_output.json">
+                <runif status="passed" />
+              </fetchartifact>
+              <exec command="cat">
+                <arg>deploy_output.json</arg>
+              </exec>
+            </tasks>
+          </job>
+        </jobs>
+      </stage>
     </pipeline>
   </pipelines>
   <templates>
@@ -204,12 +223,14 @@ RVfQ9AE7yNa7</encryptedValue>
               </fetchartifact>
               <exec command="python" workingdir="deployment/bin">
                 <arg>deploy.py</arg>
-                <arg>-i 3</arg>
                 <arg>-a setup_app.sh</arg>
                 <arg>-b setup_db.sh</arg>
                 <runif status="passed" />
               </exec>
             </tasks>
+            <artifacts>
+              <artifact src="deployment/bin/deploy_output.json" />
+            </artifacts>
           </job>
         </jobs>
       </stage>

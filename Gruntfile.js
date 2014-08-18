@@ -17,6 +17,14 @@ module.exports = function(grunt) {
         }
       },
       run: {}
+    },
+    simplemocha: {
+      options: {
+        reporter: "spec"
+      },
+      unit: { src: ['./test/unit/*.js'] },
+      functional: { src: ['./test/functional/*.js'] }
+
     }
   });
 
@@ -24,7 +32,9 @@ module.exports = function(grunt) {
 
   grunt.loadNpmTasks('grunt-selenium-webdriver');
 
-  grunt.registerTask("test", "custom test", function() {
+  grunt.loadNpmTasks('grunt-simple-mocha');
+
+  grunt.registerTask("protractorTest", "custom test", function() {
     var app = require('./app.js');
     app.set('port', process.env.PORT || 3000);
 
@@ -35,7 +45,7 @@ module.exports = function(grunt) {
     grunt.task.run("protractor");
   });
 
-  // DEFAULT TASK
-  grunt.registerTask('default', ['selenium_start', 'selenium_phantom_hub', 'test', 'selenium_stop']);
-
+  grunt.registerTask('angular', ['selenium_start', 'selenium_phantom_hub', 'protractorTest', 'selenium_stop']);
+  grunt.registerTask('unit', ['simplemocha:unit']);
+  grunt.registerTask('functional', ['simplemocha:functional']);
 };

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start": "node ./bin/www",
-    "test": "./node_modules/mocha/bin/_mocha && grunt"
+    "test": "grunt unit && grunt angular"
   },
   "dependencies": {
     "body-parser": "~1.0.0",
@@ -24,6 +24,7 @@
     "should": "^4.0.4",
     "static-favicon": "~1.0.0",
     "supertest": "^0.13.0",
-    "forever": "^0.11.1"
+    "forever": "^0.11.1",
+    "grunt-simple-mocha": "^0.4.0"
   }
 }
