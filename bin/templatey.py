@@ -149,7 +149,7 @@ class HeatTemplate(object):
         }, {
             "app_instance_{index}_ip".format(index=index): {
                 "value": { "get_attr": ["app_instance_{index}".format(index=index), "first_address"] },
-                "description": "app_instance_{index} IP Address".format(index=index)
+                "description": "Application app_instance_{index} IP Address".format(index=index)
             }
         })
 
@@ -271,7 +271,7 @@ class HeatTemplate(object):
             self.outputs.update({
                 "{name}_public_ip".format(name=ip_name): {
                     "value": { "get_attr": [ ip_name, "ip"]},
-                    "description": "{name} Floating IP Address".format(name=ip_name)
+                    "description": "Application {name} Floating IP Address".format(name=ip_name)
                 }
             })
         return ip_resources
