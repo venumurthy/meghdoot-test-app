@@ -4,7 +4,7 @@ var fs = require('fs');
 var AppAPI = require('../../lib/appApi');
 
 var appHost = {
-  url: "localhost",
+  url: "10.1.24.7",
   port: 3000
 };
 var deploy_output_file = 'bin/deploy_output.json';
@@ -16,7 +16,102 @@ var dbExists = function(dbs, name) {
   }, false);
 };
 
-var createdDbs = [];
+//App Instances :
+// App instance works
+// Connect
+// Add Db
+// Delete Db
+
+var testApp = function(api, host) {
+  var localhost = {
+    url: "localhost",
+    port: 3000
+  }
+  it("GET should have a default host of 'localhost'", function(done) {
+      var options = {};
+      options.host = localhost.url;
+      options.path = "/mongo-api/host";
+      options.method = 'GET';
+      options.port = localhost.port;
+      api.request(options, function(err, response) {
+        var host = JSON.parse(response.body);
+        host.url.should.equal("localhost");
+        done();
+      });
+    });
+
+  describe(api.host.url + "/host", function() {
+    it("POST should change the host to a different url", function(done) {
+      var newHostUrl = host.url;
+
+      var options = {};
+      options.host = api.host.url;
+      options.path = "/mongo-api/host";
+      options.method = 'POST';
+      options.port = api.host.port;
+      var postBody = {
+        "url": newHostUrl
+      };
+      var postData = JSON.stringify(postBody);
+      options.headers = {
+          'Content-Type': 'application/json',
+          'Content-Length': postData.length
+      };
+      api.request(options, postData, function(error, response) {
+        var host = JSON.parse(response.body);
+          host.url.should.equal(newHostUrl);
+          done();
+      });
+    });
+  });
+
+  var createdDbs = [];
+  describe(api.host.url + "/dbs", function() {
+    afterEach(function(done) {
+      var loop = function(index, callback, onComplete) {
+        return function() {
+          if (index<createdDbs.length) {
+            var name = createdDbs[index];
+            api.deleteDb(name, callback(index +1, loop, onComplete));
+          }
+          else {
+            createdDbs = [];
+            onComplete();
+          }
+        };
+      };
+      loop(0, loop, done)();
+    });
+
+    it("GET should return a list of databases including local", function(done) {
+      api.getDbs(function(err, dbs) {
+        dbExists(dbs, "local").should.be.ok;
+        done();
+      });
+    });
+
+    it("POST should add a new database", function(done) {
+      var dbName = "newTestDatabase";
+
+      api.createDb(dbName, function(error, dbs) {
+        dbExists(dbs, dbName).should.be.true;
+        createdDbs.push(dbName);
+        done();
+      });
+    });
+
+    it("DELETE should delete database", function(done) {
+      var dbName = "newTestDatabase";
+      api.createDb(dbName, function(error, dbs) {
+        api.deleteDb(host, dbName, function(error, dbs) {
+          dbExists(dbs, dbName).should.be.false;
+          done();
+        });
+      });
+    });
+  });
+};
+
 
 describe("Meghdoot Test App", function() {
   var api = new AppAPI(appHost);
@@ -35,92 +130,10 @@ describe("Meghdoot Test App", function() {
         done();
     });
   });
-  describe("/host", function() {
-    it("GET should have a default host of 'localhost'", function(done) {
-      var options = {};
-      options.host = appHost.url;
-      options.path = "/mongo-api/host";
-      options.method = 'GET';
-      options.port = appHost.port;
-      api.request(options, function(err, response) {
-        var host = JSON.parse(response.body);
-        host.url.should.equal("localhost");
-        done();
-      });
-    });
 
-    it("POST should change the host to a different url", function(done) {
-      var newHostUrl = "10.1.24.7";
-
-      var options = {};
-      options.host = appHost.url;
-      options.path = "/mongo-api/host";
-      options.method = 'POST';
-      options.port = appHost.port;
-      var postBody = {
-        "url": newHostUrl
-      };
-      var postData = JSON.stringify(postBody);
-      options.headers = {
-          'Content-Type': 'application/json',
-          'Content-Length': postData.length
-      };
-      api.request(options, postData, function(error, response) {
-        var host = JSON.parse(response.body);
-          host.url.should.equal(newHostUrl);
-          done();
-      });
-    });
-  });
-
-  describe("/dbs", function() {
-    afterEach(function(done) {
-      var host = appHost;
-      var loop = function(index, callback, onComplete) {
-        return function() {
-          if (index<createdDbs.length) {
-            var name = createdDbs[index];
-            api.deleteDb(host, name, callback(index +1, loop, onComplete));
-          }
-          else {
-            createdDbs = [];
-            onComplete();
-          }
-        };
-      };
-      loop(0, loop, done)();
-    });
-
-    it("GET should return a list of databases including local", function(done) {
-      var host = appHost;
-      api.getDbs(host, function(err, dbs) {
-        dbExists(dbs, "local").should.be.ok;
-        done();
-      });
-    });
-
-    it("POST should add a new database", function(done) {
-      var host = appHost;
-      var dbName = "newTestDatabase";
-
-      api.createDb(host, dbName, function(error, dbs) {
-        dbExists(dbs, dbName).should.be.true;
-        createdDbs.push(dbName);
-        done();
-      });
-    });
-
-    it("DELETE should delete database", function(done) {
-      var host = appHost;
-      var dbName = "newTestDatabase";
-      api.createDb(host, dbName, function(error, dbs) {
-        api.deleteDb(host, dbName, function(error, dbs) {
-          dbExists(dbs, dbName).should.be.false;
-          done();
-        });
-      });   
-    });
-  });
+  testApp(api, appHost);
+  testApp(api, { url: "10.0.0.3", port: 80 })
+//  api = new AppAPI({ url: "10.1.24.7", port: 80})
 });
 
 describe("Deployment", function() {
@@ -163,4 +176,3 @@ describe("Deployment", function() {
     });
   });
 });
-

@@ -1,7 +1,7 @@
 [
     {
         "output_value": "10.1.24.7",
-        "description": "mango_floatingip_1 Floating IP Address",
+        "description": "Application mango_floatingip_1 Floating IP Address",
         "output_key": "mango_floatingip_1_public_ip"
     },
     {
@@ -11,7 +11,7 @@
     },
     {
         "output_value": "10.0.0.5",
-        "description": "app_instance_1 IP Address",
+        "description": "Application app_instance_1 IP Address",
         "output_key": "app_instance_1_ip"
     }
 ]
