@@ -1,77 +1,13 @@
 var should = require('should');
-var app = require('../../app');
 var http = require('http');
 var fs = require('fs');
+var AppAPI = require('../../lib/appApi');
 
 var appHost = {
   url: "localhost",
   port: 3000
 };
 var deploy_output_file = 'bin/deploy_output.json';
-
-var request = function(options, postData, callback) {
-  var postBody;
-  if (arguments.length === 2) {
-    callback = postData;
-    postData = false;
-  }
-  else {
-    options.headers = {
-        'Content-Type': 'application/json',
-        'Content-Length': postData.length
-    };
-  }
-  var req = http.request(options, function(response) {
-    var body = "";
-    response.on('data', function(data) {
-      body += data;
-    });
-    response.on('end', function() {
-      response.body = body
-      callback(null, response);
-    });
-  });
-
-  req.on('error', function(e) {
-    console.log('problem with req: ' + e.message);
-  });
-  if (postData) {
-    req.write(postData);
-  }
-  req.end();
-}
-
-var setHost = function (host, callback) {
-  var options = {};
-  options.host = appHost.url;
-  options.path = "/mongo-api/host";
-  options.method = 'POST';
-  options.port = appHost.port;
-  var postBody = {
-    "url": host.url
-  };
-  var postData = JSON.stringify(postBody);
-  options.headers = {
-      'Content-Type': 'application/json',
-      'Content-Length': postData.length
-  };
-  request(options, postData, function() {
-    callback();
-  })
-};
-
-
-var getDbs = function(host, callback) {
-    var options = {};
-    options.host = host.url;
-    options.path = "/mongo-api/dbs";
-    options.method = 'GET';
-    options.port = host.port;
-    request(options, function(err, response) {
-      var dbs = JSON.parse(response.body);
-      callback(err, dbs);
-    });
-};
 
 var dbExists = function(dbs, name) {
   Array.isArray(dbs).should.be.ok;
@@ -80,49 +16,15 @@ var dbExists = function(dbs, name) {
   }, false);
 };
 
-  var createdDbs = [];
-
-var createDb = function(host, name, callback) {
-  var options = {};
-  options.host = host.url;
-  options.path = "/mongo-api/dbs";
-  options.method = 'POST';
-  options.port = host.port;
-
-  var db = {
-    name: name
-  };
-
-  var postData = JSON.stringify(db);
-
-  request(options, postData, function(err, response) {
-    getDbs(host, callback);
-  });
-};
-
-var deleteDb = function(host, name, callback) {
-
-  var db = {
-    name: name
-  };
-
-  var options = {};
-  options.host = appHost.url;
-  options.path = "/mongo-api/dbs?name=" + db.name;
-  options.method = 'DELETE';
-  options.port = appHost.port;
-
-  request(options, function(err, response) {
-    getDbs(host, callback);
-  });
-};
+var createdDbs = [];
 
 describe("Meghdoot Test App", function() {
+  var api = new AppAPI(appHost);
   before(function(done) {
-    setHost(appHost, done);
+    api.setHost(appHost, done);
   })
   afterEach(function(done) {
-    setHost(appHost, done);
+    api.setHost(appHost, done);
   });
 
   it("should be accessible", function(done) {
@@ -140,7 +42,7 @@ describe("Meghdoot Test App", function() {
       options.path = "/mongo-api/host";
       options.method = 'GET';
       options.port = appHost.port;
-      request(options, function(err, response) {
+      api.request(options, function(err, response) {
         var host = JSON.parse(response.body);
         host.url.should.equal("localhost");
         done();
@@ -163,7 +65,7 @@ describe("Meghdoot Test App", function() {
           'Content-Type': 'application/json',
           'Content-Length': postData.length
       };
-      request(options, postData, function(error, response) {
+      api.request(options, postData, function(error, response) {
         var host = JSON.parse(response.body);
           host.url.should.equal(newHostUrl);
           done();
@@ -178,7 +80,7 @@ describe("Meghdoot Test App", function() {
         return function() {
           if (index<createdDbs.length) {
             var name = createdDbs[index];
-            deleteDb(host, name, callback(index +1, loop, onComplete));
+            api.deleteDb(host, name, callback(index +1, loop, onComplete));
           }
           else {
             createdDbs = [];
@@ -191,7 +93,7 @@ describe("Meghdoot Test App", function() {
 
     it("GET should return a list of databases including local", function(done) {
       var host = appHost;
-      getDbs(host, function(err, dbs) {
+      api.getDbs(host, function(err, dbs) {
         dbExists(dbs, "local").should.be.ok;
         done();
       });
@@ -201,7 +103,7 @@ describe("Meghdoot Test App", function() {
       var host = appHost;
       var dbName = "newTestDatabase";
 
-      createDb(host, dbName, function(error, dbs) {
+      api.createDb(host, dbName, function(error, dbs) {
         dbExists(dbs, dbName).should.be.true;
         createdDbs.push(dbName);
         done();
@@ -211,8 +113,8 @@ describe("Meghdoot Test App", function() {
     it("DELETE should delete database", function(done) {
       var host = appHost;
       var dbName = "newTestDatabase";
-      createDb(host, dbName, function(error, dbs) {
-        deleteDb(host, dbName, function(error, dbs) {
+      api.createDb(host, dbName, function(error, dbs) {
+        api.deleteDb(host, dbName, function(error, dbs) {
           dbExists(dbs, dbName).should.be.false;
           done();
         });
