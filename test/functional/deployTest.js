@@ -5,7 +5,7 @@ var AppAPI = require('../../lib/appApi');
 
 var appHost = {
   url: "10.1.24.7",
-  port: 3000
+  port: 80
 };
 var deploy_output_file = 'bin/deploy_output.json';
 
@@ -103,7 +103,7 @@ var testApp = function(api, host) {
     it("DELETE should delete database", function(done) {
       var dbName = "newTestDatabase";
       api.createDb(dbName, function(error, dbs) {
-        api.deleteDb(host, dbName, function(error, dbs) {
+        api.deleteDb(dbName, function(error, dbs) {
           dbExists(dbs, dbName).should.be.false;
           done();
         });
@@ -117,7 +117,8 @@ describe("Meghdoot Test App", function() {
   var api = new AppAPI(appHost);
   before(function(done) {
     api.setHost(appHost, done);
-  })
+  });
+
   afterEach(function(done) {
     api.setHost(appHost, done);
   });
@@ -132,7 +133,7 @@ describe("Meghdoot Test App", function() {
   });
 
   testApp(api, appHost);
-  testApp(api, { url: "10.0.0.3", port: 80 })
+//  testApp(api, { url: "10.0.0.3", port: 80 })
 //  api = new AppAPI({ url: "10.1.24.7", port: 80})
 });
 
