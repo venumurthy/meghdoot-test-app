@@ -13,9 +13,11 @@ var request = function(options, postData, callback) {
     callback = postData;
     postData = false;
   }
-
   else {
-
+    options.headers = {
+        'Content-Type': 'application/json',
+        'Content-Length': postData.length
+    };
   }
   var req = http.request(options, function(response) {
     var body = "";
@@ -56,6 +58,63 @@ var resetHost = function(callback) {
   })
 };
 
+
+  var getDbs = function(host, callback) {
+      var options = {};
+      options.host = host.url;
+      options.path = "/mongo-api/dbs";
+      options.method = 'GET';
+      options.port = host.port;
+      request(options, function(err, response) {
+        var dbs = JSON.parse(response.body);
+        callback(err, dbs);
+      });
+  };
+
+  var dbExists = function(dbs, name) {
+    Array.isArray(dbs).should.be.ok;
+    return dbs.reduce(function(prev, curr) {
+      return prev || (curr.name === name)
+    }, false);
+  };
+
+  var createdDbs = [];
+
+  var createDb = function(host, name, callback) {
+    var options = {};
+    options.host = host.url;
+    options.path = "/mongo-api/dbs";
+    options.method = 'POST';
+    options.port = host.port;
+
+    var db = {
+      name: name
+    };
+
+    var postData = JSON.stringify(db);
+
+    request(options, postData, function(err, response) {
+      getDbs(host, callback);
+    });
+  };
+
+  var deleteDb = function(host, name, callback) {
+    
+    var db = {
+      name: name
+    };
+
+    var options = {};
+    options.host = appHost.url;
+    options.path = "/mongo-api/dbs?name=" + db.name;
+    options.method = 'DELETE';
+    options.port = appHost.port;
+
+    request(options, function(err, response) {
+      getDbs(host, callback);
+    });
+  };
+
 describe("Meghdoot Test App", function() {
   before(function(done) {
     resetHost(done);
@@ -73,7 +132,7 @@ describe("Meghdoot Test App", function() {
     });
   });
   describe("/host", function() {
-    it("should have a default host of 'localhost'", function(done) {
+    it("GET should have a default host of 'localhost'", function(done) {
       var options = {};
       options.host = appHost.url;
       options.path = "/mongo-api/host";
@@ -86,7 +145,7 @@ describe("Meghdoot Test App", function() {
       });
     });
 
-    it("should change the host to a different url", function(done) {
+    it("POST should change the host to a different url", function(done) {
       var newHostUrl = "10.1.24.7";
 
       var options = {};
@@ -107,6 +166,55 @@ describe("Meghdoot Test App", function() {
           host.url.should.equal(newHostUrl);
           done();
       });
+    });
+  });
+
+  describe("/dbs", function() {
+    afterEach(function(done) {
+      var host = appHost;
+      var loop = function(index, callback, onComplete) {
+        return function() {
+          if (index<createdDbs.length) {
+            var name = createdDbs[index];
+            deleteDb(host, name, callback(index +1, loop, onComplete));
+          }
+          else {
+            createdDbs = [];
+            onComplete();
+          }
+        };
+      };
+      loop(0, loop, done)();
+    });
+
+    it("GET should return a list of databases including local", function(done) {
+      var host = appHost;
+      getDbs(host, function(err, dbs) {
+        dbExists(dbs, "local").should.be.ok;
+        done();
+      });
+    });
+
+    it("POST should add a new database", function(done) {
+      var host = appHost;
+      var dbName = "newTestDatabase";
+
+      createDb(host, dbName, function(error, dbs) {
+        dbExists(dbs, dbName).should.be.true;
+        createdDbs.push(dbName);
+        done();
+      });
+    });
+
+    it("DELETE should delete database", function(done) {
+      var host = appHost;
+      var dbName = "newTestDatabase";
+      createDb(host, dbName, function(error, dbs) {
+        deleteDb(host, dbName, function(error, dbs) {
+          dbExists(dbs, dbName).should.be.false;
+          done();
+        });
+      });   
     });
   });
 });
