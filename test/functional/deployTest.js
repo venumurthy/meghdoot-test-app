@@ -1,11 +1,13 @@
 var should = require('should');
 var app = require('../../app');
 var http = require('http');
+var fs = require('fs');
 
 var appHost = {
   url: "localhost",
   port: 3000
 };
+var deploy_output_file = 'bin/deploy_output.json';
 
 var request = function(options, postData, callback) {
   var postBody;
@@ -39,14 +41,14 @@ var request = function(options, postData, callback) {
   req.end();
 }
 
-var resetHost = function(callback) {
+var setHost = function (host, callback) {
   var options = {};
   options.host = appHost.url;
   options.path = "/mongo-api/host";
   options.method = 'POST';
   options.port = appHost.port;
   var postBody = {
-    "url": appHost.url
+    "url": host.url
   };
   var postData = JSON.stringify(postBody);
   options.headers = {
@@ -59,68 +61,68 @@ var resetHost = function(callback) {
 };
 
 
-  var getDbs = function(host, callback) {
-      var options = {};
-      options.host = host.url;
-      options.path = "/mongo-api/dbs";
-      options.method = 'GET';
-      options.port = host.port;
-      request(options, function(err, response) {
-        var dbs = JSON.parse(response.body);
-        callback(err, dbs);
-      });
-  };
-
-  var dbExists = function(dbs, name) {
-    Array.isArray(dbs).should.be.ok;
-    return dbs.reduce(function(prev, curr) {
-      return prev || (curr.name === name)
-    }, false);
-  };
-
-  var createdDbs = [];
-
-  var createDb = function(host, name, callback) {
+var getDbs = function(host, callback) {
     var options = {};
     options.host = host.url;
     options.path = "/mongo-api/dbs";
-    options.method = 'POST';
+    options.method = 'GET';
     options.port = host.port;
-
-    var db = {
-      name: name
-    };
-
-    var postData = JSON.stringify(db);
-
-    request(options, postData, function(err, response) {
-      getDbs(host, callback);
-    });
-  };
-
-  var deleteDb = function(host, name, callback) {
-    
-    var db = {
-      name: name
-    };
-
-    var options = {};
-    options.host = appHost.url;
-    options.path = "/mongo-api/dbs?name=" + db.name;
-    options.method = 'DELETE';
-    options.port = appHost.port;
-
     request(options, function(err, response) {
-      getDbs(host, callback);
+      var dbs = JSON.parse(response.body);
+      callback(err, dbs);
     });
+};
+
+var dbExists = function(dbs, name) {
+  Array.isArray(dbs).should.be.ok;
+  return dbs.reduce(function(prev, curr) {
+    return prev || (curr.name === name)
+  }, false);
+};
+
+  var createdDbs = [];
+
+var createDb = function(host, name, callback) {
+  var options = {};
+  options.host = host.url;
+  options.path = "/mongo-api/dbs";
+  options.method = 'POST';
+  options.port = host.port;
+
+  var db = {
+    name: name
   };
+
+  var postData = JSON.stringify(db);
+
+  request(options, postData, function(err, response) {
+    getDbs(host, callback);
+  });
+};
+
+var deleteDb = function(host, name, callback) {
+
+  var db = {
+    name: name
+  };
+
+  var options = {};
+  options.host = appHost.url;
+  options.path = "/mongo-api/dbs?name=" + db.name;
+  options.method = 'DELETE';
+  options.port = appHost.port;
+
+  request(options, function(err, response) {
+    getDbs(host, callback);
+  });
+};
 
 describe("Meghdoot Test App", function() {
   before(function(done) {
-    resetHost(done);
+    setHost(appHost, done);
   })
   afterEach(function(done) {
-    resetHost(done);
+    setHost(appHost, done);
   });
 
   it("should be accessible", function(done) {
@@ -218,3 +220,45 @@ describe("Meghdoot Test App", function() {
     });
   });
 });
+
+describe("Deployment", function() {
+  it("should have created deploy_output.json", function(done) {
+    fs.readFile(deploy_output_file, 'utf8', function (err, data) {
+      if (err) {
+        console.log('Error: ' + err);
+        return;
+      }
+
+      data = JSON.parse(data);
+
+      data.forEach(function(vm) {
+        var vmType = vm.description.substring(0, vm.description.indexOf(' '));
+//        console.log("IP : ", vm.output_value, ", Type : ", vmType);
+      });
+      done();
+    });
+  });
+
+  it.skip("should be able to access every ip from deploy_output.json", function(done) {
+    fs.readFile(deploy_output_file, 'utf8', function (err, data) {
+      if (err) {
+        console.log('Error: ' + err);
+        return;
+      }
+
+      data = JSON.parse(data);
+
+      data.forEach(function(vm) {
+        var options = {};
+        options.host = vm.output_value;
+        http.get(options, function(response) {
+          console.log("IP : ", vm.output_value);
+          response.statusCode.should.equal(200);
+//          done();
+        });
+      });
+      done();
+    });
+  });
+});
+
