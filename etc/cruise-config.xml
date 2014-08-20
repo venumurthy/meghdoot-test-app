@@ -2,25 +2,6 @@
 <cruise xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="cruise-config.xsd" schemaVersion="72">
   <server artifactsdir="artifacts" commandRepositoryLocation="default" serverId="28bb789c-6a3c-4d5f-a84d-74dcea352ff7" />
   <pipelines group="Meghdoot">
-    <pipeline name="Meghdoot-Test-App" template="meghdoot-test-app">
-      <environmentvariables>
-        <variable name="HEAT_STACK_NAME">
-          <value>DeployTest</value>
-        </variable>
-        <variable name="OS_USERNAME" secure="true">
-          <encryptedValue>HgZRLwi4GKY=</encryptedValue>
-        </variable>
-        <variable name="OS_PASSWORD" secure="true">
-          <encryptedValue>0TdLzRZwsvkfacu8hDpqNQ==</encryptedValue>
-        </variable>
-        <variable name="OS_TENANTNAME" secure="true">
-          <encryptedValue>HgZRLwi4GKY=</encryptedValue>
-        </variable>
-      </environmentvariables>
-      <materials>
-        <git url="https://github.com/asifrc/meghdoot-test-app.git" />
-      </materials>
-    </pipeline>
     <pipeline name="Application" isLocked="false">
       <materials>
         <git url="https://github.com/asifrc/meghdoot-test-app.git" dest="app" />
@@ -145,25 +126,6 @@
         <pipeline pipelineName="Application" stageName="Build" />
       </materials>
     </pipeline>
-    <pipeline name="Test_Chicago">
-      <materials>
-        <pipeline pipelineName="Deploy_to_Chicago" stageName="Deploy" />
-      </materials>
-      <stage name="Test_Application">
-        <jobs>
-          <job name="TestApplication">
-            <tasks>
-              <fetchartifact pipeline="Deploy_to_Chicago" stage="Deploy" job="Deploy" srcfile="deploy_output.json">
-                <runif status="passed" />
-              </fetchartifact>
-              <exec command="cat">
-                <arg>deploy_output.json</arg>
-              </exec>
-            </tasks>
-          </job>
-        </jobs>
-      </stage>
-    </pipeline>
   </pipelines>
   <templates>
     <pipeline name="meghdoot-test-app">
@@ -218,19 +180,29 @@
         <jobs>
           <job name="Deploy">
             <tasks>
-              <fetchartifact pipeline="Application" stage="Build" job="npmInstall" srcdir="deployment">
+              <fetchartifact pipeline="Application" stage="Build" job="npmInstall" srcdir="app">
                 <runif status="passed" />
               </fetchartifact>
-              <exec command="python" workingdir="deployment/bin">
+              <exec command="python" workingdir="app/app/bin">
                 <arg>deploy.py</arg>
                 <arg>-a setup_app.sh</arg>
                 <arg>-b setup_db.sh</arg>
                 <runif status="passed" />
               </exec>
             </tasks>
-            <artifacts>
-              <artifact src="deployment/bin/deploy_output.json" />
-            </artifacts>
+          </job>
+        </jobs>
+      </stage>
+      <stage name="SmokeTest">
+        <approval type="manual" />
+        <jobs>
+          <job name="RunSmokeTest">
+            <tasks>
+              <exec command="grunt" workingdir="app/app">
+                <arg>functional</arg>
+                <runif status="passed" />
+              </exec>
+            </tasks>
           </job>
         </jobs>
       </stage>
