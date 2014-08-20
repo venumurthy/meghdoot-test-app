@@ -4,3 +4,4 @@
 *.out
 .idea
 *.pyc
+bin/deploy_output.json
