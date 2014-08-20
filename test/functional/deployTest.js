@@ -22,17 +22,21 @@ var dbExists = function(dbs, name) {
 // Add Db
 // Delete Db
 
-var testApp = function(api, host, cb) {
+var testApp = function(api, ips, cb) {
   var localhost = {
     url: "localhost",
     port: 3000
   };
 
   after(function() {
-    cb();
+    if (typeof cb === "function") {
+      cb();
+    }
   });
+  for (var i=0; i<ips.length; i++) {
+    var host = { "url": ips[i].output_value, "port": "80"};
 
-  it("GET should have a default host of 'localhost'", function(done) {
+    it("GET should have a default host of 'localhost'", function(done) {
       var options = {};
       options.host = localhost.url;
       options.path = "/mongo-api/host";
@@ -45,76 +49,77 @@ var testApp = function(api, host, cb) {
       });
     });
 
-  describe(api.host.url + "/host", function() {
-    it("POST should change the host to a different url", function(done) {
-      var newHostUrl = host.url;
+    describe(api.host.url + "/host", function() {
+      it("POST should change the host to a different url", function(done) {
+        var newHostUrl = host.url;
 
-      var options = {};
-      options.host = api.host.url;
-      options.path = "/mongo-api/host";
-      options.method = 'POST';
-      options.port = api.host.port;
-      var postBody = {
-        "url": newHostUrl
-      };
-      var postData = JSON.stringify(postBody);
-      options.headers = {
-          'Content-Type': 'application/json',
-          'Content-Length': postData.length
-      };
-      api.request(options, postData, function(error, response) {
-        var host = JSON.parse(response.body);
-          host.url.should.equal(newHostUrl);
-          done();
-      });
-    });
-  });
-
-  var createdDbs = [];
-  describe(api.host.url + "/dbs using db server  " + host.url, function() {
-    afterEach(function(done) {
-      var loop = function(index, callback, onComplete) {
-        return function() {
-          if (index<createdDbs.length) {
-            var name = createdDbs[index];
-            api.deleteDb(name, callback(index +1, loop, onComplete));
-          }
-          else {
-            createdDbs = [];
-            onComplete();
-          }
+        var options = {};
+        options.host = api.host.url;
+        options.path = "/mongo-api/host";
+        options.method = 'POST';
+        options.port = api.host.port;
+        var postBody = {
+          "url": newHostUrl
         };
-      };
-      loop(0, loop, done)();
-    });
-
-    it("GET should return a list of databases including local", function(done) {
-      api.getDbs(function(err, dbs) {
-        dbExists(dbs, "local").should.be.ok;
-        done();
-      });
-    });
-
-    it("POST should add a new database", function(done) {
-      var dbName = "newTestDatabase";
-
-      api.createDb(dbName, function(error, dbs) {
-        dbExists(dbs, dbName).should.be.true;
-        createdDbs.push(dbName);
-        done();
-      });
-    });
-
-    it("DELETE should delete database", function(done) {
-      var dbName = "newTestDatabase";
-      api.createDb(dbName, function(error, dbs) {
-        api.deleteDb(dbName, function(error, dbs) {
-          dbExists(dbs, dbName).should.be.false;
-          done();
+        var postData = JSON.stringify(postBody);
+        options.headers = {
+            'Content-Type': 'application/json',
+            'Content-Length': postData.length
+        };
+        api.request(options, postData, function(error, response) {
+          var host = JSON.parse(response.body);
+            host.url.should.equal(newHostUrl);
+            done();
         });
       });
     });
-  });
+
+    var createdDbs = [];
+    describe(api.host.url + "/dbs using db server  " + host.url, function() {
+      afterEach(function(done) {
+        var loop = function(index, callback, onComplete) {
+          return function() {
+            if (index<createdDbs.length) {
+              var name = createdDbs[index];
+              api.deleteDb(name, callback(index +1, loop, onComplete));
+            }
+            else {
+              createdDbs = [];
+              onComplete();
+            }
+          };
+        };
+        loop(0, loop, done)();
+      });
+
+      it("GET with " + api.host.url + "should return a list of databases including local", function(done) {
+        api.getDbs(function(err, dbs) {
+          dbExists(dbs, "local").should.be.ok;
+          done();
+        });
+      });
+
+      it("POST should add a new database", function(done) {
+        var dbName = "newTestDatabase";
+
+        api.createDb(dbName, function(error, dbs) {
+          dbExists(dbs, dbName).should.be.true;
+          createdDbs.push(dbName);
+          done();
+        });
+      });
+
+      it("DELETE should delete database", function(done) {
+        var dbName = "newTestDatabase";
+        api.createDb(dbName, function(error, dbs) {
+          api.deleteDb(dbName, function(error, dbs) {
+            dbExists(dbs, dbName).should.be.false;
+            done();
+          });
+        });
+      });
+    });
+  }
 };
 
 
@@ -137,8 +142,6 @@ describe("Meghdoot Test App", function() {
     });
   });
 
-//  testApp(api, appHost);
-//  testApp(api, { url: "10.0.0.3", port: 80 });
 });
 
 var readOutputFile = function(callback) {
@@ -157,45 +160,27 @@ describe("Deployment", function() {
     readOutputFile(function(ips) {
       ips.forEach(function (vm) {
         var vmType = vm.description.substring(0, vm.description.indexOf(' '));
-          console.log("IP : ", vm.output_value, ", Type : ", vmType);
+        console.log("IP : ", vm.output_value, ", Type : ", vmType);
+      });
+      done();
     });
-    done();
   });
 
-  });
-
-  it("should be able to access every ip from deploy_output.json", function(done) {
+  describe("should be able to access every ip from deploy_output.json", function() {
     this.timeout(10000);
     readOutputFile(function(ips) {
+      var apiHosts = [];
+      ips.forEach(function(app) {
+        var appType = app.description.substring(0, app.description.indexOf(' '));
+        var isFloatingIp = app.description.indexOf("Floating IP Address") != -1;
+        if (appType === "Application" && isFloatingIp) {
+          apiHosts.push(new AppAPI({ "url": app.output_value, "port": "80"}));
+        }
+      });
 
-      var loopThroughAll = function(index, callback, finalCB) {
-        return function() {
-          if (index < ips.length) {
-            var host = {"url": ips[index].output_value, "port": "80"};
-            testApp(api, host, callback(index + 1, callback, finalCB));
-          }
-          else {
-            finalCB();
-          }
-        };
-      };
-
-      var loopThroughApps = function(index, callback, finalCB) {
-        return function() {
-          var app = ips[index];
-          var appType = app.description.substring(0, app.description.indexOf(' '));
-          var isFloatingIp = app.description.indexOf("Floating IP Address") != -1;
-
-          if (appType === "Application" && isFloatingIp) {
-            var applicationHost = {"url": app.output_value, "port": "80"};
-            var api = new AppAPI(applicationHost);
-            loopThroughAll(0, callback(index +1, loopThroughApps, finalCB), finalCB);
-          }
-        };
-      };
-
-      loopThroughApps(0, loopThroughApps, done)();
-
+      for (var i=0; i<apiHosts.length; i++) {
+        testApp(apiHosts[i], ips);
+      }
     });
   });
 });
