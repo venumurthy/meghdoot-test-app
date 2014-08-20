@@ -22,11 +22,16 @@ var dbExists = function(dbs, name) {
 // Add Db
 // Delete Db
 
-var testApp = function(api, host) {
+var testApp = function(api, host, cb) {
   var localhost = {
     url: "localhost",
     port: 3000
-  }
+  };
+
+  after(function() {
+    cb();
+  });
+
   it("GET should have a default host of 'localhost'", function(done) {
       var options = {};
       options.host = localhost.url;
@@ -132,47 +137,65 @@ describe("Meghdoot Test App", function() {
     });
   });
 
-  testApp(api, appHost);
-  testApp(api, { url: "10.0.0.3", port: 80 });
+//  testApp(api, appHost);
+//  testApp(api, { url: "10.0.0.3", port: 80 });
 });
+
+var readOutputFile = function(callback) {
+  fs.readFile(deploy_output_file, 'utf8', function (err, data) {
+    if (err) {
+      console.log('Error: ' + err);
+      return;
+    }
+    var ips = JSON.parse(data);
+    callback(ips);
+  });
+};
 
 describe("Deployment", function() {
   it("should have created deploy_output.json", function(done) {
-    fs.readFile(deploy_output_file, 'utf8', function (err, data) {
-      if (err) {
-        console.log('Error: ' + err);
-        return;
-      }
-
-      data = JSON.parse(data);
-
-      data.forEach(function(vm) {
+    readOutputFile(function(ips) {
+      ips.forEach(function (vm) {
         var vmType = vm.description.substring(0, vm.description.indexOf(' '));
-//        console.log("IP : ", vm.output_value, ", Type : ", vmType);
-      });
-      done();
+          console.log("IP : ", vm.output_value, ", Type : ", vmType);
     });
+    done();
   });
 
-  it.skip("should be able to access every ip from deploy_output.json", function(done) {
-    fs.readFile(deploy_output_file, 'utf8', function (err, data) {
-      if (err) {
-        console.log('Error: ' + err);
-        return;
-      }
+  });
 
-      data = JSON.parse(data);
+  it("should be able to access every ip from deploy_output.json", function(done) {
+    this.timeout(10000);
+    readOutputFile(function(ips) {
 
-      data.forEach(function(vm) {
-        var options = {};
-        options.host = vm.output_value;
-        http.get(options, function(response) {
-          console.log("IP : ", vm.output_value);
-          response.statusCode.should.equal(200);
-//          done();
-        });
-      });
-      done();
+      var loopThroughAll = function(index, callback, finalCB) {
+        return function() {
+          if (index < ips.length) {
+            var host = {"url": ips[index].output_value, "port": "80"};
+            testApp(api, host, callback(index + 1, callback, finalCB));
+          }
+          else {
+            finalCB();
+          }
+        };
+      };
+
+      var loopThroughApps = function(index, callback, finalCB) {
+        return function() {
+          var app = ips[index];
+          var appType = app.description.substring(0, app.description.indexOf(' '));
+          var isFloatingIp = app.description.indexOf("Floating IP Address") != -1;
+
+          if (appType === "Application" && isFloatingIp) {
+            var applicationHost = {"url": app.output_value, "port": "80"};
+            var api = new AppAPI(applicationHost);
+            loopThroughAll(0, callback(index +1, loopThroughApps, finalCB), finalCB);
+          }
+        };
+      };
+
+      loopThroughApps(0, loopThroughApps, done)();
+
     });
   });
 });
