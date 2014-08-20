@@ -66,7 +66,7 @@ var testApp = function(api, host) {
   });
 
   var createdDbs = [];
-  describe(api.host.url + "/dbs", function() {
+  describe(api.host.url + "/dbs using db server  " + host.url, function() {
     afterEach(function(done) {
       var loop = function(index, callback, onComplete) {
         return function() {
@@ -133,8 +133,7 @@ describe("Meghdoot Test App", function() {
   });
 
   testApp(api, appHost);
-//  testApp(api, { url: "10.0.0.3", port: 80 })
-//  api = new AppAPI({ url: "10.1.24.7", port: 80})
+  testApp(api, { url: "10.0.0.3", port: 80 });
 });
 
 describe("Deployment", function() {
