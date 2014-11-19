@@ -18,7 +18,7 @@ parameters:
     type: string
     label: Image Name or ID
     description: An Ubuntu Cloud Image image already uploaded to OpenStack
-    default: a2aad0e8-0c68-4eac-a22f-ae23d7cc7bf2
+    default: 86efb87f-814f-4071-ba8e-082eb807f223
 
 resources:
   mango_app_init:
@@ -68,7 +68,7 @@ resources:
     properties:
       ram: 2048
       vcpus: 1
-      disk: 5
+      disk: 20
   mango_keypair:
     type: OS::Nova::KeyPair
     properties:
@@ -85,17 +85,6 @@ resources:
       user_data_format: RAW
       user_data:
         get_resource: mango_app
-  mango_instance_db:
-    type: OS::Nova::Server
-    depends_on: [ mango_flavor, mango_keypair ]
-    properties:
-      name: meghdoot_db_instance
-      flavor: { get_resource: mango_flavor }
-      image: { get_param: Image_Name }
-      key_name: { get_resource: mango_keypair }
-      user_data_format: RAW
-      user_data:
-        get_resource: mango_db
 
   mango_floatingip:
     type: OS::Nova::FloatingIP
