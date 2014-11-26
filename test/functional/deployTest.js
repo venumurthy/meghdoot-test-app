@@ -4,7 +4,7 @@ var fs = require('fs');
 var AppAPI = require('../../lib/appApi');
 
 var appHost = {
-  url: "10.1.24.7",
+  url: "10.4.2.3",
   port: 80
 };
 var deploy_output_file = 'bin/deploy_output.json';
