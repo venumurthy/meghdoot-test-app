@@ -135,7 +135,7 @@ describe("Meghdoot Test App", function() {
 
   it("should be accessible", function(done) {
       var options = {};
-      options.host = "10.1.24.7";
+      options.host = "10.4.2.3";
       http.get(options, function(response) {
         response.statusCode.should.equal(200);
         done();
