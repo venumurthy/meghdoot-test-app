@@ -1,0 +1,659 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description" : "Test template to bootstrap using chef server and bring up a wordpress",
+  
+  "Parameters" : {
+
+    "KeyName": {
+      "Description" : "Name of an existing EC2 key pair to enable SSH access to the instances",
+      "Type": "AWS::EC2::KeyPair::KeyName",
+      "Default" : "venu",
+      "ConstraintDescription" : "must be the name of an existing EC2 KeyPair."
+    },
+
+    "InstanceType" : {
+      "Description" : "Web Server EC2 instance type",
+      "Type" : "String",
+      "Default" : "m1.small",
+      "AllowedValues" : [ "t1.micro", "t2.micro", "t2.small", "t2.medium", "m1.small", "m1.medium"],
+      "ConstraintDescription" : "must be a valid EC2 instance type."
+    },
+
+  "SSHLocation": {
+      "Description": "The IP address range that can be used to SSH to the EC2 instances",
+      "Type": "String",
+      "MinLength": "9",
+      "MaxLength": "18",
+      "Default": "0.0.0.0/0",
+      "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription": "must be a valid IP CIDR range of the for x.x.x.x/x."
+    },
+
+  "DBClass" : {
+      "Description" : "Database instance class",
+      "Type" : "String",
+      "Default" : "db.m1.small",
+      "AllowedValues" : [ "db.t1.micro", "db.m1.small", "db.m1.medium", "db.m1.large", "db.m1.xlarge", "db.m2.xlarge", "db.m2.2xlarge", "db.m2.4xlarge", "db.m3.medium", "db.m3.large", "db.m3.xlarge", "db.m3.2xlarge", "db.r3.large", "db.r3.xlarge", "db.r3.2xlarge", "db.r3.4xlarge", "db.r3.8xlarge", "db.m2.xlarge", "db.m2.2xlarge", "db.m2.4xlarge", "db.cr1.8xlarge"]
+,
+      "ConstraintDescription" : "must select a valid database instance type."
+    },
+
+    "DBName" : {
+      "Default": "wordpressdb",
+      "Description" : "The WordPress database nae",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters."
+    },
+
+    "DBUser" : {
+      "NoEcho": "true",
+      "Description" : "The WordPress database admin account user name",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "16",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+      "Default" : "venu",
+      "ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters."
+    },
+
+    "DBPassword" : {
+      "NoEcho": "true",
+      "Description" : "The WordPress database admin account password",
+      "Type": "String",
+      "MinLength": "8",
+      "MaxLength": "41",
+      "AllowedPattern" : "[a-zA-Z0-9]*",
+      "Default": "Test1290789VvvVXy",
+      "ConstraintDescription" : "must contain only alphanumeric characters."
+    },
+
+    "MultiAZDatabase": {
+      "Default": "false",
+      "Description" : "Create a multi-AZ MySQL Amazon RDS database instance",
+      "Type": "String",
+      "AllowedValues" : [ "true", "false" ],
+      "ConstraintDescription" : "must be either true or false."
+    },
+
+    "WebServerCapacity": {
+      "Default": "1",
+      "Description" : "The initial nuber of web server instances",
+      "Type": "Number",
+      "MinValue": "1",
+      "MaxValue": "5",
+      "ConstraintDescription" : "must be between 1 and 5 EC2 instances."
+    },
+
+    "DBAllocatedStorage" : {
+      "Default": "5",
+      "Description" : "The size of the database (GB)",
+      "Type": "Number",
+      "MinValue": "5",
+      "MaxValue": "1024",
+      "ConstraintDescription" : "must be between 5 and 1024 GB."
+    }
+  },
+  "Mappings" : {
+    "AWSInstanceType2Arch" : {
+      "t1.micro"    : { "Arch" : "PV64"   },
+      "t2.micro"    : { "Arch" : "HVM64"  },
+      "t2.small"    : { "Arch" : "HVM64"  },
+      "t2.medium"   : { "Arch" : "HVM64"  },
+      "m1.small"    : { "Arch" : "PV64"   },
+      "m1.medium"   : { "Arch" : "PV64"   },
+      "m1.large"    : { "Arch" : "PV64"   },
+      "m1.xlarge"   : { "Arch" : "PV64"   },
+      "m2.xlarge"   : { "Arch" : "PV64"   },
+      "m2.2xlarge"  : { "Arch" : "PV64"   },
+      "m2.4xlarge"  : { "Arch" : "PV64"   },
+      "m3.medium"   : { "Arch" : "HVM64"  },
+      "m3.large"    : { "Arch" : "HVM64"  },
+      "m3.xlarge"   : { "Arch" : "HVM64"  },
+      "m3.2xlarge"  : { "Arch" : "HVM64"  },
+      "c1.medium"   : { "Arch" : "PV64"   },
+      "c1.xlarge"   : { "Arch" : "PV64"   },
+      "c3.large"    : { "Arch" : "HVM64"  },
+      "c3.xlarge"   : { "Arch" : "HVM64"  },
+      "c3.2xlarge"  : { "Arch" : "HVM64"  },
+      "c3.4xlarge"  : { "Arch" : "HVM64"  },
+      "c3.8xlarge"  : { "Arch" : "HVM64"  },
+      "c4.large"    : { "Arch" : "HVM64"  },
+      "c4.xlarge"   : { "Arch" : "HVM64"  },
+      "c4.2xlarge"  : { "Arch" : "HVM64"  },
+      "c4.4xlarge"  : { "Arch" : "HVM64"  },
+      "c4.8xlarge"  : { "Arch" : "HVM64"  },
+      "g2.2xlarge"  : { "Arch" : "HVMG2"  },
+      "r3.large"    : { "Arch" : "HVM64"  },
+      "r3.xlarge"   : { "Arch" : "HVM64"  },
+      "r3.2xlarge"  : { "Arch" : "HVM64"  },
+      "r3.4xlarge"  : { "Arch" : "HVM64"  },
+      "r3.8xlarge"  : { "Arch" : "HVM64"  },
+      "i2.xlarge"   : { "Arch" : "HVM64"  },
+      "i2.2xlarge"  : { "Arch" : "HVM64"  },
+      "i2.4xlarge"  : { "Arch" : "HVM64"  },
+      "i2.8xlarge"  : { "Arch" : "HVM64"  },
+      "hi1.4xlarge" : { "Arch" : "HVM64"  },
+      "hs1.8xlarge" : { "Arch" : "HVM64"  },
+      "cr1.8xlarge" : { "Arch" : "HVM64"  },
+      "cc2.8xlarge" : { "Arch" : "HVM64"  }
+    }
+,
+    "AWSRegionArch2AMI" : {
+      "us-east-1"        : {"PV64" : "ami-8e682ce6", "HVM64" : "ami-146e2a7c", "HVMG2" : "ami-7200461a"},
+      "us-west-2"        : {"PV64" : "ami-9fc29baf", "HVM64" : "ami-dfc39aef", "HVMG2" : "ami-0b78203b"},
+      "us-west-1"        : {"PV64" : "ami-f49089b1", "HVM64" : "ami-42908907", "HVMG2" : "ami-244b5361"},
+      "eu-west-1"        : {"PV64" : "ami-7b3db00c", "HVM64" : "ami-9d23aeea", "HVMG2" : "ami-4d7cf03a"},
+      "eu-central-1"     : {"PV64" : "ami-0600331b", "HVM64" : "ami-04003319", "HVMG2" : "NOT_SUPPORTED"},
+      "ap-northeast-1"   : {"PV64" : "ami-3c87993d", "HVM64" : "ami-18869819", "HVMG2" : "ami-2e90892f"},
+      "ap-southeast-1"   : {"PV64" : "ami-58ba910a", "HVM64" : "ami-96bb90c4", "HVMG2" : "ami-3e78526c"},
+      "ap-southeast-2"   : {"PV64" : "ami-1500742f", "HVM64" : "ami-d50773ef", "HVMG2" : "ami-315e2a0b"},
+      "sa-east-1"        : {"PV64" : "ami-fd9925e0", "HVM64" : "ami-af9925b2", "HVMG2" : "NOT_SUPPORTED"},
+      "cn-north-1"       : {"PV64" : "ami-8a1d8fb3", "HVM64" : "ami-981d8fa1", "HVMG2" : "NOT_SUPPORTED"}
+    }
+
+  },
+
+  "Conditions" : {
+    "Is-EC2-VPC"     : { "Fn::Or" : [ {"Fn::Equals" : [{"Ref" : "AWS::Region"}, "eu-central-1" ]},
+                                      {"Fn::Equals" : [{"Ref" : "AWS::Region"}, "cn-north-1" ]}]},
+    "Is-EC2-Classic" : { "Fn::Not" : [{ "Condition" : "Is-EC2-VPC"}]}
+  },
+  "Resources" : {
+
+    "VPC" : {
+      "Type" : "AWS::EC2::VPC",
+      "Properties" : {
+        "CidrBlock" : "10.0.0.0/16",
+        "Tags" : [ {"Key" : "Name", "Value" : "Meghdoot-CD-Infra"} ]
+      }
+    },
+
+    "Subnet" : {
+      "Type" : "AWS::EC2::Subnet",
+      "DependsOn" : "VPC",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VPC" },
+        "CidrBlock" : "10.0.0.0/24",
+        "AvailabilityZone" : "us-east-1a",
+        "Tags" : [ {"Key" : "Name", "Value" : "meghdootSubnet"} ]
+      }
+    },
+
+    "Subnetb" : {
+      "Type" : "AWS::EC2::Subnet",
+      "DependsOn" : "VPC",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VPC" },
+        "CidrBlock" : "10.0.1.0/24",
+        "AvailabilityZone" : "us-east-1d",
+        "Tags" : [ {"Key" : "Name", "Value" : "meghdootSubnet"} ]
+      }
+    },
+
+    "InternetGateway" : {
+      "Type" : "AWS::EC2::InternetGateway",
+      "Properties" : {
+        "Tags" : [ {"Key" : "Name", "Value" : "Meghdoot-CD-Infra"}]
+      }
+    },
+
+    "VPCGatewayAttachment" : {
+      "Type" : "AWS::EC2::VPCGatewayAttachment",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VPC" },
+        "InternetGatewayId" : { "Ref" : "InternetGateway" }
+      }
+    },
+
+    "RouteTable" : {
+      "Type" : "AWS::EC2::RouteTable",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VPC" },
+        "Tags" : [ { "Key" : "Name", "Value" : "Meghdoot-CD-Infra"} ]
+      }
+    },
+
+    "Route" : {
+      "Type" : "AWS::EC2::Route",
+      "DependsOn" : "InternetGateway",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "RouteTable" },
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref" : "InternetGateway" }
+      }
+    },
+
+    "SubnetRouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+        "Properties" : {
+          "SubnetId" : { "Ref" : "Subnet" },
+          "RouteTableId" : { "Ref" : "RouteTable" }
+       }
+    },
+
+    "NetworkAcl" : {
+      "Type" : "AWS::EC2::NetworkAcl",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VPC" },
+        "Tags" : [ { "Key" : "Name", "Value" : "Meghdoot-CD-Infra" } ]
+      }
+    },
+
+    "NetworkAclEntryForInboundSSH" : {
+      "Type" : "AWS::EC2::NetworkAclEntry",
+      "Properties" : {
+        "NetworkAclId" : { "Ref" : "NetworkAcl" },
+        "RuleNumber": "100" ,
+        "RuleAction": "allow",
+        "Egress": "false",
+        "CidrBlock": "0.0.0.0/0",
+        "Protocol": "6",
+        "PortRange": { "From":"22" , "To": "22" }
+      }
+    },
+
+    "NetworkAclEntryForInboundEphemeral" : {
+      "Type" : "AWS::EC2::NetworkAclEntry",
+      "Properties" : {
+        "NetworkAclId" : { "Ref" : "NetworkAcl" },
+        "RuleNumber": "200",
+        "RuleAction": "allow",
+        "Egress": "false",
+        "CidrBlock": "0.0.0.0/0",
+        "Protocol": "6" ,
+        "PortRange": { "From":"1024" , "To": "65535" }
+      }
+    },
+
+    "NetworkAclEntryForInbound8080" : {
+      "Type" : "AWS::EC2::NetworkAclEntry",
+      "Properties" : {
+        "NetworkAclId" : { "Ref" : "NetworkAcl" },
+        "RuleNumber": "300",
+        "RuleAction": "allow",
+        "Egress": "false",
+        "CidrBlock": "0.0.0.0/0",
+        "Protocol": "6" ,
+        "PortRange": { "From":"8080" , "To": "8080" }
+      }
+    },
+
+    "NetworkAclEntryForOutboundEphemeral" : {
+      "Type" : "AWS::EC2::NetworkAclEntry",
+      "Properties" : {
+        "NetworkAclId" : { "Ref" : "NetworkAcl" },
+        "RuleNumber": "100",
+        "RuleAction": "allow",
+        "Egress": "true",
+        "CidrBlock": "0.0.0.0/0",
+        "Protocol": "6" ,
+        "PortRange": { "From":"1024" , "To": "65535" }
+      }
+    },
+
+    "NetworkAclEntryForOutboundHTTP" : {
+      "Type" : "AWS::EC2::NetworkAclEntry",
+      "Properties" : {
+        "NetworkAclId" : { "Ref" : "NetworkAcl" },
+        "RuleNumber": "200" ,
+        "RuleAction": "allow",
+        "Egress": "true",
+        "CidrBlock": "0.0.0.0/0",
+        "Protocol": "6",
+        "PortRange": { "From":"80" , "To": "80" }
+      }
+    },
+
+    "NetworkAclEntryForOutboundHTTPS" : {
+      "Type" : "AWS::EC2::NetworkAclEntry",
+      "Properties" : {
+        "NetworkAclId" : { "Ref" : "NetworkAcl" },
+        "RuleNumber": "300" ,
+        "RuleAction": "allow",
+        "Egress": "true",
+        "CidrBlock": "0.0.0.0/0",
+        "Protocol": "6",
+        "PortRange": { "From":"443" , "To": "443" }
+      }
+    },
+
+    "SubnetNetworkAclAssociation" : {
+      "Type" : "AWS::EC2::SubnetNetworkAclAssociation",
+      "Properties" : {
+        "SubnetId" : { "Ref" : "Subnet" },
+        "NetworkAclId" : { "Ref" : "NetworkAcl" }
+      }
+    },
+
+    "SecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "main security group",
+        "VpcId" : {"Ref" : "VPC"},
+        "SecurityGroupIngress" : [
+          {"IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : "0.0.0.0/0"},
+          {"IpProtocol" : "tcp", "FromPort" : "8080", "ToPort" : "8080", "CidrIp" : "0.0.0.0/0"},
+          {"IpProtocol" : "tcp", "FromPort" : "1024", "ToPort" : "65535", "CidrIp" : "10.0.0.0/24"}
+        ],
+        "Tags" : [ { "Key" : "Name", "Value" : "Meghdoot-CD-Infra" } ]
+      }
+    },
+
+    "ElasticLoadBalancer" : {
+      "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Metadata" : {
+        "Comment1" : "Configure the Load Balancer with a simple health check and cookie-based stickiness",
+        "Comment2" : "Use install path for healthcheck to avoid redirects - ELB healthcheck does not handle 302 return codes"
+      },
+      "Properties" : {
+        "CrossZone" : "true",
+        "Subnets" : [{"Ref" : "Subnet"}],
+        "LBCookieStickinessPolicy" : [ {
+          "PolicyName" : "CookieBasedPolicy",
+          "CookieExpirationPeriod" : "30"
+        } ],
+        "Listeners" : [ {
+          "LoadBalancerPort" : "80",
+          "InstancePort" : "80",
+          "Protocol" : "HTTP",
+          "PolicyNames" : [ "CookieBasedPolicy" ]
+        } ],
+        "HealthCheck" : {
+          "Target" : "HTTP:80/wp-admin/install.php",
+          "HealthyThreshold" : "2",
+          "UnhealthyThreshold" : "5",
+          "Interval" : "10",
+          "Timeout" : "5"
+        }
+      }
+    },
+
+    "WebServerGroup" : {
+      "Type" : "AWS::AutoScaling::AutoScalingGroup",
+      "Properties" : {
+        "AvailabilityZones" : { "Fn::GetAZs" : "" },
+        "LaunchConfigurationName" : { "Ref" : "LaunchConfig" },
+        "MinSize" : "1",
+        "MaxSize" : "5",
+        "DesiredCapacity" : { "Ref" : "WebServerCapacity" },
+        "LoadBalancerNames" : [ { "Ref" : "ElasticLoadBalancer" } ]
+      },
+      "CreationPolicy" : {
+        "ResourceSignal" : {
+          "Timeout" : "PT15M"
+        }
+      },
+      "UpdatePolicy": {
+        "AutoScalingRollingUpdate": {
+          "MinInstancesInService": "1",
+          "MaxBatchSize": "1",
+          "PauseTime" : "PT15M",
+          "WaitOnResourceSignals": "true"
+        }
+      }
+    },
+
+    "LaunchConfig": {
+      "Type" : "AWS::AutoScaling::LaunchConfiguration",
+      "Metadata" : {
+        "AWS::CloudFormation::Init" : {
+          "configSets" : {
+            "wordpress_install" : ["install_cfn", "install_chefdk", "install_chef", "install_wordpress", "run_chef"]
+          },
+          "install_cfn" : {
+            "files": {
+              "/etc/cfn/cfn-hup.conf": {
+                "content": { "Fn::Join": [ "", [
+                  "[main]\n",
+                  "stack=", { "Ref": "AWS::StackId" }, "\n",
+                  "region=", { "Ref": "AWS::Region" }, "\n"
+                ]]},
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              },
+              "/etc/cfn/hooks.d/cfn-auto-reloader.conf": {
+                "content": { "Fn::Join": [ "", [
+                  "[cfn-auto-reloader-hook]\n",
+                  "triggers=post.update\n",
+                  "path=Resources.LaunchConfig.Metadata.AWS::CloudFormation::Init\n",
+                  "action=/opt/aws/bin/cfn-init -v ",
+                          "         --stack ", { "Ref" : "AWS::StackName" },
+                          "         --resource LaunchConfig ",
+                          "         --configsets wordpress_install ",
+                          "         --region ", { "Ref" : "AWS::Region" }, "\n"
+                ]]},          
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              }
+            },
+            "services" : {
+              "sysvinit" : {
+                "cfn-hup" : { "enabled" : "true", "ensureRunning" : "true",
+                              "files" : ["/etc/cfn/cfn-hup.conf", "/etc/cfn/hooks.d/cfn-auto-reloader.conf"] }
+              }
+            }
+          },
+
+          "install_chef" : {
+            "sources" : {
+              "/var/chef/chef-repo" : "http://github.com/opscode/chef-repo/tarball/master"
+            },
+            "files" : {
+              "/tmp/install.sh" : {
+                "source" : "https://www.opscode.com/chef/install.sh",
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              },
+              "/var/chef/chef-repo/.chef/knife.rb" : {
+                "content" : { "Fn::Join": [ "", [
+                  "cookbook_path [ '/var/chef/chef-repo/cookbooks' ]\n",
+                  "node_path [ '/var/chef/chef-repo/nodes' ]\n"
+                ]]},
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              },
+              "/var/chef/chef-repo/.chef/client.rb" : {
+                "content" : { "Fn::Join": [ "", [
+                  "cookbook_path [ '/var/chef/chef-repo/cookbooks' ]\n",
+                  "node_path [ '/var/chef/chef-repo/nodes' ]\n"
+                ]]},
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              }
+            },
+            "commands" : {
+              "01_make_chef_readable" : {
+                "command" : "chmod +rx /var/chef"
+              },
+              "02_install_chef" : {
+                "command" : "bash /tmp/install.sh",
+                "cwd"  : "/var/chef"
+              },
+              "03_create_node_list" : {
+                "command" : "chef-client -z -c /var/chef/chef-repo/.chef/client.rb",
+                "cwd" : "/var/chef/chef-repo",
+                "env" : { "HOME" : "/var/chef" }
+              }
+            }
+          },
+
+          "install_chefdk" : {
+            "packages" : {
+              "rpm" : {
+                "chefdk" : "https://opscode-omnibus-packages.s3.amazonaws.com/el/6/x86_64/chefdk-0.2.0-2.el6.x86_64.rpm"
+              }
+            }
+          },
+
+          "install_wordpress" : {
+            "files" : {
+              "/var/chef/chef-repo/.chef/knife.rb" : {
+                "content" : { "Fn::Join": [ "", [
+                  "cookbook_path [ '/var/chef/chef-repo/cookbooks/wordpress/berks-cookbooks' ]\n",
+                  "node_path [ '/var/chef/chef-repo/nodes' ]\n"
+                ]]},
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              },
+              "/var/chef/chef-repo/.chef/client.rb" : {
+                "content" : { "Fn::Join": [ "", [
+                  "cookbook_path [ '/var/chef/chef-repo/cookbooks/wordpress/berks-cookbooks' ]\n",
+                  "node_path [ '/var/chef/chef-repo/nodes' ]\n"
+                ]]},
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              },
+              "/var/chef/chef-repo/cookbooks/wordpress/attributes/aws_rds_config.rb" : {
+                "content": { "Fn::Join": [ "", [
+                  "normal['wordpress']['db']['pass'] = '", {"Ref" : "DBPassword"}, "'\n",
+                  "normal['wordpress']['db']['user'] = '", {"Ref" : "DBUser"}, "'\n",
+                  "normal['wordpress']['db']['host'] = '", {"Fn::GetAtt" : ["DBInstance", "Endpoint.Address"]}, "'\n",
+                  "normal['wordpress']['db']['name'] = '", {"Ref" : "DBName"}, "'\n"
+                ]]},          
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              }
+            },
+            "commands" : {
+              "01_get_cookbook" : {
+                "command" : "knife cookbook site download wordpress",
+                "cwd" : "/var/chef/chef-repo",
+                "env" : { "HOME" : "/var/chef" }
+              },
+              "02_unpack_cookbook" : {
+                "command" : "tar xvfz /var/chef/chef-repo/wordpress*",
+                "cwd" : "/var/chef/chef-repo/cookbooks"
+              },
+              "03_init_berkshelf": {
+                "command" : "berks init /var/chef/chef-repo/cookbooks/wordpress --skip-vagrant --skip-git",
+                "cwd" : "/var/chef/chef-repo/cookbooks/wordpress",
+                "env" : { "HOME" : "/var/chef" }
+              },
+              "04_vendorize_berkshelf" : {
+                "command" : "berks vendor",
+                "cwd" : "/var/chef/chef-repo/cookbooks/wordpress",
+                "env" : { "HOME" : "/var/chef" }
+              },
+              "05_configure_node_run_list" : {
+                "command" : "knife node run_list add -z `knife node list -z` recipe[wordpress]",
+                "cwd" : "/var/chef/chef-repo",
+                "env" : { "HOME" : "/var/chef" }
+              }
+            }
+          },
+
+          "run_chef" : {
+            "commands" : {
+              "01_run_chef_client" : {
+                "command" : "chef-client -z -c /var/chef/chef-repo/.chef/client.rb",
+                "cwd" : "/var/chef/chef-repo",
+                "env" : { "HOME" : "/var/chef" }
+              }
+            }
+          }
+        }
+      },
+      "Properties": {
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+                          { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "InstanceType" }, "Arch" ] } ] },
+        "InstanceType"   : { "Ref" : "InstanceType" },
+        "SecurityGroups" : [ {"Ref" : "WebServerSecurityGroup"} ],
+        "KeyName"        : { "Ref" : "KeyName" },
+        "UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+                       "#!/bin/bash -xe\n",
+                       "yum update -y aws-cfn-bootstrap\n",
+
+                       "/opt/aws/bin/cfn-init -v ",
+                       "         --stack ", { "Ref" : "AWS::StackName" },
+                       "         --resource LaunchConfig ",
+                       "         --configsets wordpress_install ",
+                       "         --region ", { "Ref" : "AWS::Region" }, "\n",
+
+                       "/opt/aws/bin/cfn-signal -e $? ",
+                       "         --stack ", { "Ref" : "AWS::StackName" },
+                       "         --resource WebServerGroup ",
+                       "         --region ", { "Ref" : "AWS::Region" }, "\n"
+        ]]}}
+      }
+    },
+    "DBEC2SecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Condition" : "Is-EC2-VPC",
+      "Properties" : {
+        "GroupDescription": "Open database for access",
+        "SecurityGroupIngress" : [{
+          "IpProtocol" : "tcp",
+          "FromPort" : "3306",
+          "ToPort" : "3306",
+          "SourceSecurityGroupName" : { "Ref" : "WebServerSecurityGroup" }
+        }]
+      }
+    },
+
+    "DBSecurityGroup": {
+      "Type": "AWS::RDS::DBSecurityGroup",
+      "Condition" : "Is-EC2-Classic",
+      "Properties": {
+        "DBSecurityGroupIngress": {
+          "EC2SecurityGroupName": { "Ref": "WebServerSecurityGroup" }
+        },
+        "GroupDescription": "database access"
+      }
+    },
+
+  "myDBSubnetGroup" : {
+      "Type" : "AWS::RDS::DBSubnetGroup",
+      "Properties" : {
+          "DBSubnetGroupDescription" : "Subnet group to create db instance",
+            "SubnetIds" : [{"Ref" : "Subnet"},{"Ref" : "Subnetb"}]
+         }
+      },
+
+  "DBInstance" : {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "DBName"            : { "Ref" : "DBName" },
+        "AvailabilityZone"  : "us-east-1a",
+        "DBSubnetGroupName" : { "Ref" : "myDBSubnetGroup"},
+        "Engine"            : "MySQL",
+        "MultiAZ"           : { "Ref": "MultiAZDatabase" },
+        "MasterUsername"    : { "Ref" : "DBUser" },
+        "DBInstanceClass"   : { "Ref" : "DBClass" },
+        "AllocatedStorage"  : { "Ref" : "DBAllocatedStorage" },
+        "MasterUserPassword": { "Ref" : "DBPassword" },
+        "VPCSecurityGroups": { "Fn::If" : [ "Is-EC2-VPC", [ { "Fn::GetAtt": [ "DBEC2SecurityGroup", "GroupId" ] } ], { "Ref" : "AWS::NoValue"}]},
+        "DBSecurityGroups": { "Fn::If" : [ "Is-EC2-Classic", [ { "Ref": "DBSecurityGroup" } ], { "Ref" : "AWS::NoValue"}]}
+      }
+    },
+
+    "WebServerSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable HTTP access via port 80 locked down to the load balancer + SSH access",
+        "SecurityGroupIngress" : [
+          {"IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80",
+"SourceSecurityGroupOwnerId" : {"Fn::GetAtt" : ["ElasticLoadBalancer", "SourceSecurityGroup.OwnerAlias"]},"SourceSecurityGroupName" : {"Fn::GetAtt" : ["ElasticLoadBalancer", "SourceSecurityGroup.GroupName"]}},
+          {"IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : { "Ref" : "SSHLocation"}}
+        ]
+      }
+    }
+  },
+
+  "Outputs" : {
+    "WebsiteURL" : {
+      "Value" : { "Fn::Join" : ["", ["http://", { "Fn::GetAtt" : [ "ElasticLoadBalancer", "DNSName" ]}]]},
+      "Description" : "WordPress website"
+    }
+  }
+}

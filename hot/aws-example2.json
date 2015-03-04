@@ -1,0 +1,376 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "PayPerks Backend Application Stack",
+
+  "Parameters" : {
+    "Env" : {
+      "Type" : "String",
+      "MinLength" : "1",
+      "Description" : "Allowed values: 'staging', 'prod'",
+      "AllowedValues" : [ "staging", "prod" ]
+    }
+
+  },
+
+  "Mappings" : {
+    "EnvMap" : {
+      "staging" : {
+        "Elb0SubnetId"  : "subnet-bb2922fd",
+        "Elb1SubnetId"  : "subnet-27f0db0f",
+        "App0SubnetId"  : "subnet-38a1a17e",
+        "App1SubnetId"  : "subnet-b37a599b",
+        "App2SubnetId"  : "subnet-38a1a17e",
+        "App3SubnetId"  : "subnet-b37a599b",
+        "Psql0SubnetId" : "subnet-4e9d7b39",
+        "Psql1SubnetId" : "subnet-3aa1a17c",
+        "UtilSubnetId"  : "subnet-9a060edc",
+        "AppKeyName"    : "aws-instance-key-1",
+        "VpcId"         : "vpc-73824f16",
+        "VpnCidrIp"     : "172.16.2.0/24",
+        "ZabbixIp"      : "10.20.0.11/32",
+
+        "DbInstanceClass"         : "db.r3.2xlarge",
+        "DbMultiAZ"               : "true",
+        "DbBackupRetentionPeriod" : "0",
+        "DbAllocatedStorage"      : "500",
+        "DbIops"                  : "2000",
+        "DbUsername"              : "root",
+        "DbPassword"              : "Shoh7ohpeh6Leil3"
+      },
+
+      "prod" : {
+        "App0SubnetId" : "",
+        "App1SubnetId" : "",
+        "AppKeyName"   : "",
+        "VpcId"        : "",
+        "VpnCidrIp"    : "",
+        "ZabbixIp"     : ""
+      }
+    },
+
+    "Region2AmiMap" : {
+      "us-east-1" : { "AmiId" : "ami-5e691737" },
+      "us-west-2" : { "AmiId" : "ami-c51c8ff5" }
+    }
+
+  },
+
+  "Resources" : {
+    "AdminAppSg" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "PayPerks Admin Application Security Group",
+        "VpcId" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "VpcId" ] },
+        "SecurityGroupIngress" : [
+          { "IpProtocol" : "icmp", "FromPort" : "-1",    "ToPort" : "-1",    "CidrIp" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "VpnCidrIp" ] } },
+          { "IpProtocol" : "tcp",  "FromPort" : "22",    "ToPort" : "22",    "CidrIp" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "VpnCidrIp" ] } },
+          { "IpProtocol" : "tcp",  "FromPort" : "80",    "ToPort" : "80",    "CidrIp" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "VpnCidrIp" ] } },
+          { "IpProtocol" : "tcp",  "FromPort" : "443",   "ToPort" : "443",   "CidrIp" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "VpnCidrIp" ] } },
+          { "IpProtocol" : "tcp",  "FromPort" : "10050", "ToPort" : "10050", "CidrIp" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "ZabbixIp"  ] } }
+        ]
+      }
+    },
+
+    "AppElbSg" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "PayPerks Backend Application ELB Security Group",
+        "VpcId" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "VpcId" ] },
+        "SecurityGroupIngress" : [
+          { "IpProtocol" : "tcp",  "FromPort" : "80",    "ToPort" : "80",    "CidrIp" : "184.75.99.4/32" },
+          { "IpProtocol" : "tcp",  "FromPort" : "443",   "ToPort" : "443",   "CidrIp" : "184.75.99.4/32" }
+        ]
+      }
+    },
+
+    "AppEc2Sg" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "PayPerks Application Server Security Group",
+        "VpcId" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "VpcId" ] },
+        "SecurityGroupIngress" : [
+          { "IpProtocol" : "icmp", "FromPort" : "-1",    "ToPort" : "-1",    "CidrIp" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "VpnCidrIp" ] } },
+          { "IpProtocol" : "tcp",  "FromPort" : "22",    "ToPort" : "22",    "CidrIp" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "VpnCidrIp" ] } },
+          { "IpProtocol" : "tcp",  "FromPort" : "80",    "ToPort" : "80",    "SourceSecurityGroupId" : { "Ref" : "AppElbSg" } },
+          { "IpProtocol" : "tcp",  "FromPort" : "81",    "ToPort" : "81",    "SourceSecurityGroupId" : { "Ref" : "AppElbSg" } },
+          { "IpProtocol" : "tcp",  "FromPort" : "10050", "ToPort" : "10050", "CidrIp" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "ZabbixIp"  ] } }
+        ]
+      }
+    },
+
+    "AdminAppEc2Instance" : {
+      "Type" : "AWS::EC2::Instance",
+      "Properties" : {
+        "ImageId" : { "Fn::FindInMap" : [ "Region2AmiMap", { "Ref" : "AWS::Region" }, "AmiId" ] },
+        "InstanceType" : "m3.medium",
+        "KeyName" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "AppKeyName" ] },
+        "SubnetId" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "UtilSubnetId" ] },
+        "SecurityGroupIds" : [ { "Ref" : "AdminAppSg" } ],
+        "Tags" : [
+          { "Key" : "Name", "Value" : { "Fn::Join" : [ ".", [ "admin", { "Ref" : "Env" }, "perksops.com" ] ] } },
+          { "Key" : "gig-backup", "Value" : "2" },
+          { "Key" : "Environment", "Value" : { "Ref" : "Env" } }
+        ],
+        "UserData" : { "Fn::Base64" : { "Fn::Join" : [ "", [
+          "gig-bootstrap_server = ", { "Fn::Join" : [ ".", [ "pe", { "Ref" : "Env" }, "perksops.com" ] ] }, "\n",
+          "gig-bootstrap_port = 61613", "\n",
+          "gig-bootstrap_user = mcollective", "\n",
+          "gig-bootstrap_password = RjHc37OLQXS85AWTDVoC", "\n",
+          "gig-bootstrap_psk = 8c0c324a5b7d7ecd2ce9da8b3f8ba6f75e075851", "\n",
+          "gig-bootstrap_name = ", { "Fn::Join" : [ ".", [ "admin", { "Ref" : "Env" }, "perksops.com" ] ] }, "\n",
+          "bootstrap_hostname = ", { "Fn::Join" : [ ".", [ "admin", { "Ref" : "Env" }, "perksops.com" ] ] }, "\n",
+          "role = payperks_admin_server", "\n",
+          "cf_stack = ", { "Ref" : "AWS::StackName" }, "\n"
+        ] ] } }
+      }
+    },
+
+    "App0Ec2Instance" : {
+      "Type" : "AWS::EC2::Instance",
+      "Properties" : {
+        "ImageId" : { "Fn::FindInMap" : [ "Region2AmiMap", { "Ref" : "AWS::Region" }, "AmiId" ] },
+        "InstanceType" : "c1.medium",
+        "KeyName" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "AppKeyName" ] },
+        "SubnetId" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "App0SubnetId" ] },
+        "SecurityGroupIds" : [ { "Ref" : "AppEc2Sg" } ],
+        "Tags" : [
+          { "Key" : "Name", "Value" : { "Fn::Join" : [ ".", [ "app-01", { "Ref" : "Env" }, "perksops.com" ] ] } },
+          { "Key" : "gig-backup", "Value" : "2" },
+          { "Key" : "Environment", "Value" : { "Ref" : "Env" } }
+        ],
+        "UserData" : { "Fn::Base64" : { "Fn::Join" : [ "", [
+          "gig-bootstrap_server = ", { "Fn::Join" : [ ".", [ "pe", { "Ref" : "Env" }, "perksops.com" ] ] }, "\n",
+          "gig-bootstrap_port = 61613", "\n",
+          "gig-bootstrap_user = mcollective", "\n",
+          "gig-bootstrap_password = RjHc37OLQXS85AWTDVoC", "\n",
+          "gig-bootstrap_psk = 8c0c324a5b7d7ecd2ce9da8b3f8ba6f75e075851", "\n",
+          "gig-bootstrap_name = ", { "Fn::Join" : [ ".", [ "app-01", { "Ref" : "Env" }, "perksops.com" ] ] }, "\n",
+          "bootstrap_hostname = ", { "Fn::Join" : [ ".", [ "app-01", { "Ref" : "Env" }, "perksops.com" ] ] }, "\n",
+          "role = payperks_app_server", "\n",
+          "cf_stack = ", { "Ref" : "AWS::StackName" }, "\n"
+        ] ] } }
+      }
+    },
+
+    "App1Ec2Instance" : {
+      "Type" : "AWS::EC2::Instance",
+      "Properties" : {
+        "ImageId" : { "Fn::FindInMap" : [ "Region2AmiMap", { "Ref" : "AWS::Region" }, "AmiId" ] },
+        "InstanceType" : "c1.medium",
+        "KeyName" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "AppKeyName" ] },
+        "SubnetId" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "App1SubnetId" ] },
+        "SecurityGroupIds" : [ { "Ref" : "AppEc2Sg" } ],
+        "Tags" : [
+          { "Key" : "Name", "Value" : { "Fn::Join" : [ ".", [ "app-02", { "Ref" : "Env" }, "perksops.com" ] ] } },
+          { "Key" : "gig-backup", "Value" : "2" },
+          { "Key" : "Environment", "Value" : { "Ref" : "Env" } }
+        ],
+        "UserData" : { "Fn::Base64" : { "Fn::Join" : [ "", [
+          "gig-bootstrap_server = ", { "Fn::Join" : [ ".", [ "pe", { "Ref" : "Env" }, "perksops.com" ] ] }, "\n",
+          "gig-bootstrap_port = 61613", "\n",
+          "gig-bootstrap_user = mcollective", "\n",
+          "gig-bootstrap_password = RjHc37OLQXS85AWTDVoC", "\n",
+          "gig-bootstrap_psk = 8c0c324a5b7d7ecd2ce9da8b3f8ba6f75e075851", "\n",
+          "gig-bootstrap_name = ", { "Fn::Join" : [ ".", [ "app-02", { "Ref" : "Env" }, "perksops.com" ] ] }, "\n",
+          "bootstrap_hostname = ", { "Fn::Join" : [ ".", [ "app-02", { "Ref" : "Env" }, "perksops.com" ] ] }, "\n",
+          "role = payperks_app_server", "\n",
+          "cf_stack = ", { "Ref" : "AWS::StackName" }, "\n"
+        ] ] } }
+      }
+    },
+
+    "App2Ec2Instance" : {
+      "Type" : "AWS::EC2::Instance",
+      "Properties" : {
+        "ImageId" : { "Fn::FindInMap" : [ "Region2AmiMap", { "Ref" : "AWS::Region" }, "AmiId" ] },
+        "InstanceType" : "c1.medium",
+        "KeyName" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "AppKeyName" ] },
+        "SubnetId" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "App2SubnetId" ] },
+        "SecurityGroupIds" : [ { "Ref" : "AppEc2Sg" } ],
+        "Tags" : [
+          { "Key" : "Name", "Value" : { "Fn::Join" : [ ".", [ "app-03", { "Ref" : "Env" }, "perksops.com" ] ] } },
+          { "Key" : "gig-backup", "Value" : "2" },
+          { "Key" : "Environment", "Value" : { "Ref" : "Env" } }
+        ],
+        "UserData" : { "Fn::Base64" : { "Fn::Join" : [ "", [
+          "gig-bootstrap_server = ", { "Fn::Join" : [ ".", [ "pe", { "Ref" : "Env" }, "perksops.com" ] ] }, "\n",
+          "gig-bootstrap_port = 61613", "\n",
+          "gig-bootstrap_user = mcollective", "\n",
+          "gig-bootstrap_password = RjHc37OLQXS85AWTDVoC", "\n",
+          "gig-bootstrap_psk = 8c0c324a5b7d7ecd2ce9da8b3f8ba6f75e075851", "\n",
+          "gig-bootstrap_name = ", { "Fn::Join" : [ ".", [ "app-03", { "Ref" : "Env" }, "perksops.com" ] ] }, "\n",
+          "bootstrap_hostname = ", { "Fn::Join" : [ ".", [ "app-03", { "Ref" : "Env" }, "perksops.com" ] ] }, "\n",
+          "role = payperks_app_server", "\n",
+          "cf_stack = ", { "Ref" : "AWS::StackName" }, "\n"
+        ] ] } }
+      }
+    },
+
+    "App3Ec2Instance" : {
+      "Type" : "AWS::EC2::Instance",
+      "Properties" : {
+        "ImageId" : { "Fn::FindInMap" : [ "Region2AmiMap", { "Ref" : "AWS::Region" }, "AmiId" ] },
+        "InstanceType" : "c1.medium",
+        "KeyName" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "AppKeyName" ] },
+        "SubnetId" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "App3SubnetId" ] },
+        "SecurityGroupIds" : [ { "Ref" : "AppEc2Sg" } ],
+        "Tags" : [
+          { "Key" : "Name", "Value" : { "Fn::Join" : [ ".", [ "app-04", { "Ref" : "Env" }, "perksops.com" ] ] } },
+          { "Key" : "gig-backup", "Value" : "2" },
+          { "Key" : "Environment", "Value" : { "Ref" : "Env" } }
+        ],
+        "UserData" : { "Fn::Base64" : { "Fn::Join" : [ "", [
+          "gig-bootstrap_server = ", { "Fn::Join" : [ ".", [ "pe", { "Ref" : "Env" }, "perksops.com" ] ] }, "\n",
+          "gig-bootstrap_port = 61613", "\n",
+          "gig-bootstrap_user = mcollective", "\n",
+          "gig-bootstrap_password = RjHc37OLQXS85AWTDVoC", "\n",
+          "gig-bootstrap_psk = 8c0c324a5b7d7ecd2ce9da8b3f8ba6f75e075851", "\n",
+          "gig-bootstrap_name = ", { "Fn::Join" : [ ".", [ "app-04", { "Ref" : "Env" }, "perksops.com" ] ] }, "\n",
+          "bootstrap_hostname = ", { "Fn::Join" : [ ".", [ "app-04", { "Ref" : "Env" }, "perksops.com" ] ] }, "\n",
+          "role = payperks_app_server", "\n",
+          "cf_stack = ", { "Ref" : "AWS::StackName" }, "\n"
+        ] ] } }
+      }
+    },
+
+    "AppElb" : {
+      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties": {
+        "HealthCheck" : {
+          "Target" : "TCP:81",
+          "HealthyThreshold" : "3",
+          "UnhealthyThreshold" : "5",
+          "Interval" : "30",
+          "Timeout" : "5"
+        },
+        "Instances" : [
+          { "Ref" : "App0Ec2Instance" },
+          { "Ref" : "App1Ec2Instance" },
+          { "Ref" : "App2Ec2Instance" },
+          { "Ref" : "App3Ec2Instance" }
+        ],
+        "Listeners" : [
+          {
+            "Protocol" : "HTTP",
+            "LoadBalancerPort" : "80",
+            "InstancePort" : "80"
+          }
+        ],
+        "CrossZone" : "True",
+        "SecurityGroups" : [ { "Ref" : "AppElbSg" } ],
+        "Subnets" : [
+          { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "Elb0SubnetId" ] },
+          { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "Elb1SubnetId" ] }
+        ]
+      }
+    },
+
+    "DbSubnetGroup" : {
+      "Type" : "AWS::RDS::DBSubnetGroup",
+      "Properties" : {
+        "DBSubnetGroupDescription" : "PostgreSQL DB Subnet Group",
+        "SubnetIds" : [
+          { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "Psql0SubnetId" ] },
+          { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "Psql1SubnetId" ] }
+        ],
+        "Tags" : [
+          { "Key" : "Name", "Value" : { "Ref" : "AWS::StackName" } }
+        ]
+      }
+    },
+
+    "DbParameterGroup" : {
+      "Type": "AWS::RDS::DBParameterGroup",
+      "Properties" : {
+        "Description" : "PostgreSQL DB Parameter Group",
+        "Family" : "postgres9.3",
+        "Tags" : [
+          { "Key" : "Name", "Value" : { "Ref" : "AWS::StackName" } }
+        ]
+      }
+    },
+
+    "DbEc2Sg" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "PostgreSQL security group",
+        "VpcId" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "VpcId" ] },
+        "Tags" : [
+          { "Key" : "Name", "Value" : "DbEc2Sg" }
+        ],
+        "SecurityGroupIngress" : [
+          { "IpProtocol" : "tcp", "FromPort" : "5432", "ToPort" : "5432", "SourceSecurityGroupId" : { "Ref" : "AppEc2Sg" } },
+          { "IpProtocol" : "tcp", "FromPort" : "5432", "ToPort" : "5432", "SourceSecurityGroupId" : { "Ref" : "AdminAppSg" } }
+        ]
+      }
+    },
+
+    "DbInstance" : {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "Engine"                : "postgres",
+        "DBInstanceClass"       : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "DbInstanceClass" ] },
+        "MultiAZ"               : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "DbMultiAZ" ] },
+        "BackupRetentionPeriod" : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "DbBackupRetentionPeriod" ] },
+        "AllocatedStorage"      : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "DbAllocatedStorage" ] },
+        "Iops"                  : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "DbIops" ] },
+        "MasterUsername"        : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "DbUsername" ] },
+        "MasterUserPassword"    : { "Fn::FindInMap" : [ "EnvMap", { "Ref" : "Env" }, "DbPassword" ] },
+        "DBSubnetGroupName"     : { "Ref" : "DbSubnetGroup" },
+        "DBParameterGroupName"  : { "Ref" : "DbParameterGroup" },
+        "VPCSecurityGroups"     : [ { "Ref" : "DbEc2Sg" } ],
+        "Tags" : [
+          { "Key" : "Name", "Value" : { "Fn::Join" : [ ".", [ "psql", { "Ref" : "Env" }, "perksops.com" ] ] } },
+          { "Key" : "Environment", "Value" : { "Ref" : "Env" } }
+        ]
+      }
+    },
+
+
+    "R53RecordSetGroup" : {
+      "Type" : "AWS::Route53::RecordSetGroup",
+      "Properties" : {
+        "HostedZoneName" : "perksops.com.",
+        "RecordSets" : [
+          {
+            "Name" : { "Fn::Join" : [ ".", [ { "Ref" : "Env" }, "perksops.com" ] ] },
+            "Type" : "CNAME",
+            "TTL" : "300",
+            "ResourceRecords" : [ { "Fn::GetAtt" : [ "AppElb", "DNSName" ] } ]
+          },
+          {
+            "Name" : { "Fn::Join" : [ ".", [ "admin", { "Ref" : "Env" }, "perksops.com" ] ] },
+            "Type" : "A",
+            "TTL" : "300",
+            "ResourceRecords" : [ { "Fn::GetAtt" : [ "AdminAppEc2Instance", "PrivateIp" ] } ]
+          },
+          {
+            "Name" : { "Fn::Join" : [ ".", [ "app-01", { "Ref" : "Env" }, "perksops.com" ] ] },
+            "Type" : "A",
+            "TTL" : "300",
+            "ResourceRecords" : [ { "Fn::GetAtt" : [ "App0Ec2Instance", "PrivateIp" ] } ]
+          },
+          {
+            "Name" : { "Fn::Join" : [ ".", [ "app-02", { "Ref" : "Env" }, "perksops.com" ] ] },
+            "Type" : "A",
+            "TTL" : "300",
+            "ResourceRecords" : [ { "Fn::GetAtt" : [ "App1Ec2Instance", "PrivateIp" ] } ]
+          },
+          {
+            "Name" : { "Fn::Join" : [ ".", [ "app-03", { "Ref" : "Env" }, "perksops.com" ] ] },
+            "Type" : "A",
+            "TTL" : "300",
+            "ResourceRecords" : [ { "Fn::GetAtt" : [ "App2Ec2Instance", "PrivateIp" ] } ]
+          },
+          {
+            "Name" : { "Fn::Join" : [ ".", [ "app-04", { "Ref" : "Env" }, "perksops.com" ] ] },
+            "Type" : "A",
+            "TTL" : "300",
+            "ResourceRecords" : [ { "Fn::GetAtt" : [ "App3Ec2Instance", "PrivateIp" ] } ]
+          }
+        ]
+      }
+    }
+  }
+}
