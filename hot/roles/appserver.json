@@ -1,0 +1,11 @@
+{
+  "name" :"appserver",
+  "default_attributes": {
+    "appserver":{
+      "greeting": "Webinar"
+  }
+},
+"run_list": [
+  "recipe[app_server]"
+]
+}
