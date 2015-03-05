@@ -26,17 +26,39 @@
        "Default" : "ami-146e2a7c",
        "ConstraintDescription" : "Must be a valid image Id"
       },
+    "ChefRunList": {
+      "Description": "The Chef runlist.",
+      "Type": "String",
+      "Default": "role[appserver]"
+    },
+
+    "ChefOrganization": {
+      "Description": "The Organization name used in Hosted Chef.",
+      "Type": "String",
+      "Default": "aws-openstack"
+    },
 
     "ChefServerURL" : {
       "Description" : "URL of Chef Server",
       "Type" : "String",
       "Default" : "https://api.opscode.com/organizations/aws-openstack"
     },
-    "ChefServerPrivateKeyBucket" : {
+    "MeghdootBucket" : {
       "Description" : "S3 bucket containing validation private key for Chef Server",
       "Type": "String",
       "Default" : "meghdoot-bucket"
     },
+    "DomainName": {
+      "Description": "Server Domain Name.",
+      "Type": "String",
+      "Default": "meghdoot.com"
+    },
+    "ChefEnvironment": {
+      "Description": "The Chef Environment.",
+      "Type": "String",
+      "Default": "prod_meghdoot"
+    },
+
     "ChefServerSecurityGroup" : {
       "Description" : "Security group to get access to Opscode Chef Server",
       "Type": "String"
@@ -220,6 +242,61 @@
         "Tags" : [ { "Key" : "Name", "Value" : "Meghdoot-CD-Infra" } ]
       }
     },
+    "ChefClientUser": {
+      "Type": "AWS::IAM::User",
+      "Properties": {
+        "Path": "/",
+          "Policies" : [
+            {
+              "PolicyName" : "root",
+              "PolicyDocument" : {
+                "Statement" : [
+                  {
+                    "Effect" : "Allow",
+                    "Action" : ["cloudformation:DescribeStackResource", "s3:Get"],
+                    "Resource": "*"
+                  }
+
+                ]
+              }
+            }
+          ]
+        }
+      },
+
+    "HostKeys": {
+      "Type": "AWS::IAM::AccessKey",
+      "DependsOn": "ChefClientUser",
+      "Properties": {
+        "UserName": {"Ref": "ChefClientUser"}
+      }
+    },
+    "BucketPolicy": {
+        "Type": "AWS::S3::BucketPolicy",
+        "DependsOn": "HostKeys",
+        "Properties": {
+            "PolicyDocument": {
+              "Version": "2008-10-17",
+              "Id": "ReadPolicy",
+              "Statement": [
+                    {
+                      "Sid": "ReadAccess",
+                      "Action": ["s3:GetObject"],
+                      "Effect": "Allow",
+                      "Resource": {
+                        "Fn::Join": ["",
+                                ["arn:aws:s3:::",{"Ref": "MeghdootBucket"},"/*"
+                                ]]},
+                        "Principal": {"AWS": {"Fn::GetAtt": ["ChefClientUser", "Arn"]}
+                        }
+                    }
+                ]
+            },
+            "Bucket": {
+                "Ref": "MeghdootBucket"
+            }
+        }
+    },
 
     "AppServer" : {
       "Type" : "AWS::EC2::EIP",
@@ -284,9 +361,7 @@
             }
           },
           "install_chef" : {
-            "sources" : {
-              "/var/chef/chef-repo" : "http://github.com/opscode/chef-repo/tarball/master"
-            },
+            "sources" : {"/var/chef/chef-repo" : "http://github.com/opscode/chef-repo/tarball/master"},
             "files" : {
               "/tmp/install.sh" : {
                 "source" : "https://www.opscode.com/chef/install.sh",
@@ -311,8 +386,49 @@
                 "mode"  : "000400",
                 "owner" : "root",
                 "group" : "root"
+              },
+
+              "/var/chef/first-boot.json": {
+                "content": {
+                  "run_list": {
+                    "Ref": "ChefRunList"
+                  },
+                  "mode": "000644",
+                  "owner": "root",
+                  "group": "root"
+                }
+              },
+              "/etc/yum.repos.d/s3tools.repo": {
+                "content": {
+                  "Fn::Join": ["",
+                  ["[s3tools]\n",
+                   "name=Tools for managing Amazon S3 - Simple Storage Service (RHEL_6) \n",
+                   "type=rpm-md \n",
+                   "baseurl=http://s3tools.org/repo/RHEL_6/ \n",
+                   "gpgcheck=1\n",
+                   "gpgkey=http://s3tools.org/repo/RHEL_6/repodata/repomd.xml.key\n",
+                   "enabled=1\n"
+                  ]
+                  ]
+                }
+
+                },
+
+              "/.s3cfg": {
+                "content": {
+                  "Fn::Join": ["",
+                    ["[default]\n", 
+                    "access_key = ", {"Ref": "HostKeys"}, "\n", 
+                    "secret_key = ", {"Fn::GetAtt": ["HostKeys", "SecretAccessKey"]}, "\n", 
+                    "use_https = True\n"
+                    ]]
+                },
+                "mode": "000644",
+                "owner": "root",
+                "group": "root"
               }
             },
+
             "commands" : {
               "01_make_chef_readable" : {
                 "command" : "chmod +rx /var/chef"
@@ -358,14 +474,23 @@
                        "#!/bin/bash -xe\n",
                        "yum update -y\n",
                        "yum update -y aws-cfn-bootstrap\n",
+                       "yum install -y python-setuptools\n",
+                       "yum install -y s3cmd\n",
+                       "export PATH=$PATH:/var/lib/gems/1.8/bin\n",
 
                        "# Install the files and packages from the metadata\n",
                        "/opt/aws/bin/cfn-init -v ",
                        "         --stack ", { "Ref" : "AWS::StackName" },
                        "         --resource EC2InstanceAppServer ",
                        "         --configsets InstallAndRun ",
+                       "         --access-key ", {"Ref": "HostKeys"}, 
+                       "         --secret-key ", {"Fn::GetAtt": ["HostKeys", "SecretAccessKey"]},
                        "         --region ", { "Ref" : "AWS::Region" }, "\n",
-                       
+
+                       "s3cmd -c /.s3cfg get s3://", {"Ref": "MeghdootBucket"}, "/chef_init.rb /var/chef/chef_init.rb > /tmp/get_chef_init.log 2>&1 || error_exit 'Failed to get Chef initialization script.'\n",
+                       "ruby /var/chef/chef_init.rb ", {"Ref": "DomainName"}, " ", {"Ref": "ChefEnvironment"}, " ", {"Ref": "ChefOrganization"}, " >> /tmp/get_chef_init.log 2>&1 || error_exit 'Failed to run chef_init script.'\n",
+                       "s3cmd -c /.s3cfg get s3://", {"Ref": "MeghdootBucket"}, "/aws-openstack-validation.pem /etc/chef/validation.pem > /tmp/get_validation_key.log 2>&1 || error_exit 'Failed to get Chef Server validation key'\n",
+                       "chef-client -j /var/chef/first-boot.json > /tmp/initialize_client.log 2>&1 || error_exit 'Failed to initialize host via chef client' \n",
                        "# Signal the status from cfn-init \n"
         ]]}}
       }
