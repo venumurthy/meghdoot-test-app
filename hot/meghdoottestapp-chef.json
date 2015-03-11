@@ -398,6 +398,7 @@
                   "group": "root"
                 }
               },
+
               "/etc/yum.repos.d/s3tools.repo": {
                 "content": {
                   "Fn::Join": ["",
@@ -410,7 +411,10 @@
                    "enabled=1\n"
                   ]
                   ]
-                }
+                },
+                  "mode": "000644",
+                  "owner": "root",
+                  "group": "root"
 
                 },
 
@@ -475,7 +479,6 @@
                        "yum update -y\n",
                        "yum update -y aws-cfn-bootstrap\n",
                        "yum install -y python-setuptools\n",
-                       "yum install -y s3cmd\n",
                        "export PATH=$PATH:/var/lib/gems/1.8/bin\n",
 
                        "# Install the files and packages from the metadata\n",
@@ -487,6 +490,7 @@
                        "         --secret-key ", {"Fn::GetAtt": ["HostKeys", "SecretAccessKey"]},
                        "         --region ", { "Ref" : "AWS::Region" }, "\n",
 
+                       "yum install -y s3cmd\n",
                        "s3cmd -c /.s3cfg get s3://", {"Ref": "MeghdootBucket"}, "/chef_init.rb /var/chef/chef_init.rb > /tmp/get_chef_init.log 2>&1 || error_exit 'Failed to get Chef initialization script.'\n",
                        "ruby /var/chef/chef_init.rb ", {"Ref": "DomainName"}, " ", {"Ref": "ChefEnvironment"}, " ", {"Ref": "ChefOrganization"}, " >> /tmp/get_chef_init.log 2>&1 || error_exit 'Failed to run chef_init script.'\n",
                        "s3cmd -c /.s3cfg get s3://", {"Ref": "MeghdootBucket"}, "/aws-openstack-validation.pem /etc/chef/validation.pem > /tmp/get_validation_key.log 2>&1 || error_exit 'Failed to get Chef Server validation key'\n",
