@@ -43,11 +43,13 @@
       "Type" : "String",
       "Default" : "https://api.opscode.com/organizations/aws-openstack"
     },
+
     "MeghdootBucket" : {
       "Description" : "S3 bucket containing validation private key for Chef Server",
       "Type": "String",
       "Default" : "meghdoot-bucket"
     },
+
     "DomainName": {
       "Description": "Server Domain Name.",
       "Type": "String",
@@ -57,11 +59,6 @@
       "Description": "The Chef Environment.",
       "Type": "String",
       "Default": "prod_meghdoot"
-    },
-
-    "ChefServerSecurityGroup" : {
-      "Description" : "Security group to get access to Opscode Chef Server",
-      "Type": "String"
     },
     "SSHLocation" : {
       "Description" : " The IP address range that can be used to SSH to the EC2 instances",
@@ -275,26 +272,19 @@
         "Type": "AWS::S3::BucketPolicy",
         "DependsOn": "HostKeys",
         "Properties": {
-            "PolicyDocument": {
+          "PolicyDocument": {
               "Version": "2008-10-17",
               "Id": "ReadPolicy",
-              "Statement": [
-                    {
+              "Statement": [{
                       "Sid": "ReadAccess",
                       "Action": ["s3:GetObject"],
                       "Effect": "Allow",
-                      "Resource": {
-                        "Fn::Join": ["",
-                                ["arn:aws:s3:::",{"Ref": "MeghdootBucket"},"/*"
-                                ]]},
-                        "Principal": {"AWS": {"Fn::GetAtt": ["ChefClientUser", "Arn"]}
-                        }
+                      "Resource": {"Fn::Join": ["",["arn:aws:s3:::",{"Ref": "MeghdootBucket"},"/*"]]},
+                      "Principal": {"AWS": {"Fn::GetAtt": ["ChefClientUser", "Arn"]}}
                     }
                 ]
             },
-            "Bucket": {
-                "Ref": "MeghdootBucket"
-            }
+            "Bucket": {"Ref": "MeghdootBucket"}
         }
     },
 
@@ -361,7 +351,7 @@
             }
           },
           "install_chef" : {
-            "sources" : {"/var/chef/chef-repo" : "http://github.com/opscode/chef-repo/tarball/master"},
+            "sources" : {"/etc/chef/chef-repo" : "http://github.com/opscode/chef-repo/tarball/master"},
             "files" : {
               "/tmp/install.sh" : {
                 "source" : "https://www.opscode.com/chef/install.sh",
@@ -369,26 +359,26 @@
                 "owner" : "root",
                 "group" : "root"
               },
-              "/var/chef/chef-repo/.chef/knife.rb" : {
+              "/etc/chef/chef-repo/.chef/knife.rb" : {
                 "content" : { "Fn::Join": [ "", [
-                  "cookbook_path [ '/var/chef/chef-repo/cookbooks' ]\n",
-                  "node_path [ '/var/chef/chef-repo/nodes' ]\n"
+                  "cookbook_path [ '/etc/chef/chef-repo/cookbooks' ]\n",
+                  "node_path [ '/etc/chef/chef-repo/nodes' ]\n"
                 ]]},
                 "mode"  : "000400",
                 "owner" : "root",
                 "group" : "root"
               },
-              "/var/chef/chef-repo/.chef/client.rb" : {
+              "/etc/chef/chef-repo/.chef/client.rb" : {
                 "content" : { "Fn::Join": [ "", [
-                  "cookbook_path [ '/var/chef/chef-repo/cookbooks' ]\n",
-                  "node_path [ '/var/chef/chef-repo/nodes' ]\n"
+                  "cookbook_path [ '/etc/chef/chef-repo/cookbooks' ]\n",
+                  "node_path [ '/etc/chef/chef-repo/nodes' ]\n"
                 ]]},
                 "mode"  : "000400",
                 "owner" : "root",
                 "group" : "root"
               },
 
-              "/var/chef/first-boot.json": {
+              "/etc/chef/first-boot.json": {
                 "content": {
                   "run_list": {
                     "Ref": "ChefRunList"
@@ -435,16 +425,16 @@
 
             "commands" : {
               "01_make_chef_readable" : {
-                "command" : "chmod +rx /var/chef"
+                "command" : "chmod +rx /etc/chef"
               },
               "02_install_chef" : {
                 "command" : "bash /tmp/install.sh",
-                "cwd"  : "/var/chef"
+                "cwd"  : "/etc/chef"
               },
               "03_create_node_list" : {
-                "command" : "chef-client -z -c /var/chef/chef-repo/.chef/client.rb",
-                "cwd" : "/var/chef/chef-repo",
-                "env" : { "HOME" : "/var/chef" }
+                "command" : "chef-client -z -c /etc/chef/chef-repo/.chef/client.rb",
+                "cwd" : "/etc/chef/chef-repo",
+                "env" : { "HOME" : "/etc/chef" }
               }
             }
           },
@@ -459,9 +449,9 @@
           "run_chef" : {
             "commands" : {
               "01_run_chef_client" : {
-                "command" : "chef-client -z -c /var/chef/chef-repo/.chef/client.rb",
-                "cwd" : "/var/chef/chef-repo",
-                "env" : { "HOME" : "/var/chef" }
+                "command" : "chef-client -z -c /etc/chef/chef-repo/.chef/client.rb",
+                "cwd" : "/etc/chef/chef-repo",
+                "env" : { "HOME" : "/etc/chef" }
               }
             }
           }
@@ -491,10 +481,10 @@
                        "         --region ", { "Ref" : "AWS::Region" }, "\n",
 
                        "yum install -y s3cmd\n",
-                       "s3cmd -c /.s3cfg get s3://", {"Ref": "MeghdootBucket"}, "/chef_init.rb /var/chef/chef_init.rb > /tmp/get_chef_init.log 2>&1 || error_exit 'Failed to get Chef initialization script.'\n",
-                       "ruby /var/chef/chef_init.rb ", {"Ref": "DomainName"}, " ", {"Ref": "ChefEnvironment"}, " ", {"Ref": "ChefOrganization"}, " >> /tmp/get_chef_init.log 2>&1 || error_exit 'Failed to run chef_init script.'\n",
+                       "s3cmd -c /.s3cfg get s3://", {"Ref": "MeghdootBucket"}, "/chef_init.rb /etc/chef/chef_init.rb > /tmp/get_chef_init.log 2>&1 || error_exit 'Failed to get Chef initialization script.'\n",
+                       "ruby /etc/chef/chef_init.rb ", {"Ref": "DomainName"}, " ", {"Ref": "ChefEnvironment"}, " ", {"Ref": "ChefOrganization"}, " >> /tmp/get_chef_init.log 2>&1 || error_exit 'Failed to run chef_init script.'\n",
                        "s3cmd -c /.s3cfg get s3://", {"Ref": "MeghdootBucket"}, "/aws-openstack-validation.pem /etc/chef/validation.pem > /tmp/get_validation_key.log 2>&1 || error_exit 'Failed to get Chef Server validation key'\n",
-                       "chef-client -j /var/chef/first-boot.json > /tmp/initialize_client.log 2>&1 || error_exit 'Failed to initialize host via chef client' \n",
+                       "chef-client -j /etc/chef/first-boot.json > /tmp/initialize_client.log 2>&1 || error_exit 'Failed to initialize host via chef client' \n",
                        "# Signal the status from cfn-init \n"
         ]]}}
       }

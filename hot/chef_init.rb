@@ -39,12 +39,12 @@ end
 #
 #Setup client.rb file
 #
-File.open("/var/chef/client.rb", "w") do |f|
+File.open("/etc/chef/client.rb", "w") do |f|
         f.print <<-EOH
 log_level :info
 log_location STDOUT
 chef_server_url "https://api.opscode.com/organizations/#{organization}"
-validation_client_name "#{organization}-validator"
+validation_client_name "#{organization}-validation"
 node_name "#{node_name}.#{domain_name}"
 environment "#{environment}"
 EOH
